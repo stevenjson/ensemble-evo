@@ -69,6 +69,13 @@ public:
   using SGP__memory_t = SGP__hardware_t::memory_t;
   using SGP__tag_t = SGP__hardware_t::affinity_t;
 
+  // More aliases
+  using phenotype_t = emp::vector<double>;
+  using data_t = emp::mut_landscape_info<phenotype_t>;
+  using mut_count_t = std::unordered_map<std::string, double>;
+  using SGP__world_t = emp::World<SGP__program_t, data_t>;
+  using SGP__genotype_t = SGP__world_t::genotype_t;
+
 protected:
   // == Configurable experiment parameters ==
   // @config_declarations
@@ -138,6 +145,16 @@ protected:
   size_t OTHELLO_MAX_ROUND_CNT; ///< What are the maximum number of rounds in game?
   size_t best_agent_id;
 
+  emp::Ptr<OthelloHardware> othello_dreamware; ///< Othello game board dreamware!
+
+  OthelloLookup othello_lookup;
+
+  // SignalGP-specifics.
+  emp::Ptr<SGP__world_t> sgp_world;         ///< World for evolving SignalGP agents.
+  emp::Ptr<SGP__inst_lib_t> sgp_inst_lib;   ///< SignalGP instruction library.
+  emp::Ptr<SGP__event_lib_t> sgp_event_lib; ///< SignalGP event library.
+  emp::Ptr<SGP__hardware_t> sgp_eval_hw;    ///< Hardware used to evaluate SignalGP programs during evolution/analysis.
+
 public:
   EnsembleExp(const EnsembleConfig &config)                                                                                  // @constructor
       : update(0), eval_time(0), OTHELLO_MAX_ROUND_CNT(0), best_agent_id(0) //,
@@ -172,6 +189,31 @@ public:
     POP_SNAPSHOT_INTERVAL = config.POP_SNAPSHOT_INTERVAL();
     DATA_DIRECTORY = config.DATA_DIRECTORY();
 
+    // Make a random number generator.
+    random = emp::NewPtr<emp::Random>(RANDOM_SEED);
+
+    // What is the maximum number of rounds for an othello game?
+    OTHELLO_MAX_ROUND_CNT = (OTHELLO_BOARD_WIDTH * OTHELLO_BOARD_WIDTH) - 4;
+
+    // Configure the dreamware!
+    othello_dreamware = emp::NewPtr<OthelloHardware>(1);
+
+    // Make the world(s)!
+    // - SGP World -
+    sgp_world = emp::NewPtr<SGP__world_t>(random, "SGP-Ensemble-World"); //TODO: Change to agents
+  }
+
+  ~EnsembleExp()
+  {
+    random.Delete();
+    othello_dreamware.Delete();
+    sgp_world.Delete();
+    // agp_world.Delete();
+    // sgp_inst_lib.Delete();
+    // agp_inst_lib.Delete();
+    // sgp_event_lib.Delete();
+    // sgp_eval_hw.Delete();
+    // agp_eval_hw.Delete();
   }
 
   void Run()
