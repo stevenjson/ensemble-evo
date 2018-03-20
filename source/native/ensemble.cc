@@ -30,6 +30,6 @@ int main(int argc, char* argv[])
   std::cout << "==============================\n"
             << std::endl;
 
-  //EnsembleExp e(config);
+  EnsembleExp e(config);
   //e.Run();
 }
