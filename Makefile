@@ -1,5 +1,5 @@
 # Project-specific settings
-PROJECT := lineage
+PROJECT := ensemble
 EMP_DIR := ../Empirical/source
 
 # Flags to use regardless of compiler
