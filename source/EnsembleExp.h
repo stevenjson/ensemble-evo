@@ -269,6 +269,8 @@ public:
     // Make data directory.
     mkdir(DATA_DIRECTORY.c_str(), ACCESSPERMS);
     if (DATA_DIRECTORY.back() != '/') DATA_DIRECTORY += '/';
+
+    ConfigSGP();
   }
 
   ~EnsembleExp()
@@ -279,6 +281,23 @@ public:
     sgp_inst_lib.Delete();
     sgp_event_lib.Delete();
     sgp_eval_hw.Delete();
+  }
+  void Run()
+  {
+
+    std::clock_t base_start_time = std::clock();
+
+    // do_begin_run_setup_sig.Trigger();
+    // for (update = 0; update <= GENERATIONS; ++update)
+    // {
+    //   RunStep();
+    //   if (update % POP_SNAPSHOT_INTERVAL == 0)
+    //     do_pop_snapshot_sig.Trigger(update);
+    // }
+
+    std::clock_t base_tot_time = std::clock() - base_start_time;
+    std::cout << "Time = " << 1000.0 * ((double)base_tot_time) / (double)CLOCKS_PER_SEC
+              << " ms." << std::endl;
   }
 
   /// Do a single step of evolution.
@@ -609,25 +628,124 @@ void EnsembleExp::SGP_Snapshot_SingleFile(size_t update)
 
 #include "EnsembleExp__InstructionImpl.h"
 
-void Run()
-{
+void EnsembleExp::ConfigSGP(){
+  // Configure the world.
+  sgp_world->Reset();
+  sgp_world->SetWellMixed(true);
 
-  std::clock_t base_start_time = std::clock();
+  // Setup mutation function.
+  if (SGP_VARIABLE_LENGTH)
+  {
+    sgp_world->SetMutFun([this](SignalGPAgent &agent, emp::Random &rnd) { return this->SGP__Mutate_VariableLength(agent, rnd); }, ELITE_SELECT__ELITE_CNT);
+  }
+  else
+  {
+    // NOTE: second argument specifies that we're not mutating the first thing int the pop (we're doing elite selection in all of our stuff).
+    sgp_world->SetMutFun([this](SignalGPAgent &agent, emp::Random &rnd) { return this->SGP__Mutate_FixedLength(agent, rnd); }, ELITE_SELECT__ELITE_CNT);
+  }
 
-  // do_begin_run_setup_sig.Trigger();
-  // for (update = 0; update <= GENERATIONS; ++update)
+  // TODO: Set up calc fitness
+
+  ConfigSGP_InstLib();
+
+  sgp_eval_hw = emp::NewPtr<SGP__hardware_t>(sgp_inst_lib, sgp_event_lib, random);
+  sgp_eval_hw->SetMinBindThresh(SGP_HW_MIN_BIND_THRESH);
+  sgp_eval_hw->SetMaxCores(SGP_HW_MAX_CORES);
+  sgp_eval_hw->SetMaxCallDepth(SGP_HW_MAX_CALL_DEPTH);
+
+  // - Setup move evaluation signals/functors -
+  // Setup begin_turn_signal action:
+  //  - Reset the evaluation hardware. Give hardware accurate playerID, and update the dreamboard.
+  get_eval_agent_done = [this]() {
+    return (bool)sgp_eval_hw->GetTrait(TRAIT_ID__DONE);
+  };
+
+  get_eval_agent_playerID = [this]() {
+    return othello_dreamware->GetPlayerID();
+  };
+
+  do_pop_init_sig.AddAction([this]() {
+    this->SGP__InitPopulation_Random();
+  });
+
+  do_begin_run_setup_sig.AddAction([this]() {
+    std::cout << "Doing initial run setup." << std::endl;
+    // Setup fitness tracking.
+    auto &fit_file = sgp_world->SetupFitnessFile(DATA_DIRECTORY + "fitness.csv");
+    fit_file.SetTimingRepeat(FITNESS_INTERVAL);
+    record_fit_sig.AddAction([this](size_t pos, double fitness) { sgp_world->GetGenotypeAt(pos)->GetData().RecordFitness(fitness); });
+    // Generate the initial population.
+    do_pop_init_sig.Trigger();
+  });
+
+  do_evaluation_sig.AddAction([this]() {
+    double best_score = -32767;
+    best_agent_id = 0;
+    for (size_t id = 0; id < sgp_world->GetSize(); ++id)
+    {
+      // std::cout << "Evaluating agent: " << id << std::endl;
+      // Evaluate agent given by id.
+      SignalGPAgent &our_hero = sgp_world->GetOrg(id);
+      our_hero.SetID(id);
+      sgp_eval_hw->SetProgram(our_hero.GetGenome());
+      // this->Evaluate(our_hero);
+      // TODO: add eval functions
+    }
+    std::cout << "Update: " << update << " Max score: " << best_score << std::endl;
+  });
+
+  // - Configure world upate.
+  do_world_update_sig.AddAction([this]() { sgp_world->Update(); });
+
+  // do_pop_snapshot
+  do_pop_snapshot_sig.AddAction([this](size_t update) { this->SGP_Snapshot_SingleFile(update); });
+
+  // - Configure selection TODO
+  switch (SELECTION_METHOD)
+  {
+  case SELECTION_METHOD_ID__TOURNAMENT:
+    do_selection_sig.AddAction([this]() {
+      //this->EliteSelect_MASK(*sgp_world, ELITE_SELECT__ELITE_CNT, 1);
+      emp::TournamentSelect(*sgp_world, TOURNAMENT_SIZE, POP_SIZE - ELITE_SELECT__ELITE_CNT);
+    });
+    break;
+  // case SELECTION_METHOD_ID__LEXICASE:
   // {
-  //   RunStep();
-  //   if (update % POP_SNAPSHOT_INTERVAL == 0)
-  //     do_pop_snapshot_sig.Trigger(update);
+  //   sgp_lexicase_fit_set.resize(0);
+  //   for (size_t i = 0; i < testcases.GetSize(); ++i)
+  //   {
+  //     sgp_lexicase_fit_set.push_back([i, this](SignalGPAgent &agent) {
+  //       Phenotype &phen = agent_phen_cache[agent.GetID()];
+  //       return phen.testcase_scores[i];
+  //     });
+  //   }
+  //   do_selection_sig.AddAction([this]() {
+  //     this->EliteSelect_MASK(*sgp_world, ELITE_SELECT__ELITE_CNT, 1);
+  //     emp::LexicaseSelect(*sgp_world, sgp_lexicase_fit_set, POP_SIZE - ELITE_SELECT__ELITE_CNT);
+  //   });
+  //   break;
   // }
+  default:
+  std::cout << "Unrecognized selection method! Exiting..." << std::endl;
+  exit(-1);
+  }
 
-  std::clock_t base_tot_time = std::clock() - base_start_time;
-  std::cout << "Time = " << 1000.0 * ((double)base_tot_time) / (double)CLOCKS_PER_SEC
-            << " ms." << std::endl;
-
-  
+  // Setup run-mode agent advance signal response.
+  agent_advance_sig.AddAction([this]() {
+    sgp_eval_hw->SingleProcess();
+  });
+  // Setup run-mode begin turn signal response.
+  begin_turn_sig.AddAction([this](const othello_t &game) {
+    //const player_t playerID = testcases[cur_testcase].GetInput().playerID;
+    SGP__ResetHW();
+    othello_dreamware->Reset(game);
+    othello_dreamware->SetActiveDream(0);
+    //othello_dreamware->SetPlayerID(playerID); TODO
+  });
+  // Setup non-verbose get move.
+  get_eval_agent_move = [this]() {
+    return (size_t)sgp_eval_hw->GetTrait(TRAIT_ID__MOVE);
+  };
 }
-
 
 #endif
