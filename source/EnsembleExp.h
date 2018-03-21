@@ -182,6 +182,39 @@ protected:
   std::function<player_t(void)> get_eval_agent_playerID;               ///< Should return eval_hardware's current playerID. Hardware-specific!
   //std::function<double(test_case_t &, othello_idx_t)> calc_test_score; ///< Given a test case and a move, what is the appropriate score? Shared between hardware types.
 
+  /// Get othello board index given *any* position.
+  /// If position can't be used to make an Othello::Index struct, clamp it so that it can.
+  othello_idx_t GetOthelloIndex(size_t pos)
+  {
+    return (pos > OTHELLO_BOARD_NUM_CELLS) ? OTHELLO_BOARD_NUM_CELLS : pos;
+  }
+
+  facing_t IntToFacing(int dir)
+  {
+    dir = emp::Mod(dir, othello_t::NUM_DIRECTIONS);
+    switch (dir)
+    {
+    case 0:
+      return facing_t::N;
+    case 1:
+      return facing_t::NE;
+    case 2:
+      return facing_t::E;
+    case 3:
+      return facing_t::SE;
+    case 4:
+      return facing_t::S;
+    case 5:
+      return facing_t::SW;
+    case 6:
+      return facing_t::W;
+    case 7:
+      return facing_t::NW;
+    }
+    emp_assert(false);
+    return facing_t::N; //< Should never get here.
+  }
+
 public:
   EnsembleExp(const EnsembleConfig &config)                                                                                  // @constructor
       : update(0), eval_time(0), OTHELLO_MAX_ROUND_CNT(0), best_agent_id(0) //,
@@ -236,8 +269,6 @@ public:
     // Make data directory.
     mkdir(DATA_DIRECTORY.c_str(), ACCESSPERMS);
     if (DATA_DIRECTORY.back() != '/') DATA_DIRECTORY += '/';
-
-
   }
 
   ~EnsembleExp()
@@ -250,25 +281,353 @@ public:
     sgp_eval_hw.Delete();
   }
 
-  void Run()
+  /// Do a single step of evolution.
+  void RunStep()
   {
-
-    std::clock_t base_start_time = std::clock();
-
-    // do_begin_run_setup_sig.Trigger();
-    // for (update = 0; update <= GENERATIONS; ++update)
-    // {
-    //   RunStep();
-    //   if (update % POP_SNAPSHOT_INTERVAL == 0)
-    //     do_pop_snapshot_sig.Trigger(update);
-    // }
-
-    std::clock_t base_tot_time = std::clock() - base_start_time;
-    std::cout << "Time = " << 1000.0 * ((double)base_tot_time) / (double)CLOCKS_PER_SEC
-              << " ms." << std::endl;
-
-    
+    do_evaluation_sig.Trigger();   // Update agent scores.
+    do_selection_sig.Trigger();    // Do selection (selection, reproduction, mutation).
+    do_world_update_sig.Trigger(); // Do world update (population turnover, clear score caches).
   }
+
+  // // Fitness function(s)
+  // double CalcFitness(Agent &agent)
+  // {
+  //   return agent_phen_cache[agent.GetID()].aggregate_score;
+  // }
+
+  // Config functions. These do all of the hardware-specific experiment setup/configuration.
+  void ConfigSGP();
+  void ConfigSGP_InstLib();
+
+  // Mutation functions
+  size_t SGP__Mutate_FixedLength(SignalGPAgent &agent, emp::Random &rnd);
+  size_t SGP__Mutate_VariableLength(SignalGPAgent &agent, emp::Random &rnd);
+
+  // Population snapshot functions
+  void SGP_Snapshot_SingleFile(size_t update);
+  void AGP_Snapshot_SingleFile(size_t update);
+
+  // SignalGP utility functions.
+  void SGP__InitPopulation_Random();
+  void SGP__ResetHW(const SGP__memory_t &main_in_mem = SGP__memory_t());
+
+  // -- SignalGP Instructions --
+  // Fork
+  void SGP__Inst_Fork(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  // BoardWidth
+  void SGP_Inst_GetBoardWidth(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  // EndTurn
+  void SGP_Inst_EndTurn(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  // SetMove
+  void SGP__Inst_SetMoveXY(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  void SGP__Inst_SetMoveID(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  // GetMove
+  void SGP__Inst_GetMoveXY(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  void SGP__Inst_GetMoveID(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  // Adjacent
+  void SGP__Inst_AdjacentXY(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  void SGP__Inst_AdjacentID(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  // IsValid
+  void SGP__Inst_IsValidXY_HW(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  void SGP__Inst_IsValidID_HW(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  // IsValidOpp
+  void SGP__Inst_IsValidOppXY_HW(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  void SGP__Inst_IsValidOppID_HW(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  // ValidMovesCnt
+  void SGP__Inst_ValidMoveCnt_HW(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  // ValidOppMovesCnt
+  void SGP__Inst_ValidOppMoveCnt_HW(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  // GetBoardValue
+  void SGP__Inst_GetBoardValueXY_HW(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  void SGP__Inst_GetBoardValueID_HW(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  // Place
+  void SGP__Inst_PlaceDiskXY_HW(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  void SGP__Inst_PlaceDiskID_HW(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  // PlaceOpp
+  void SGP__Inst_PlaceOppDiskXY_HW(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  void SGP__Inst_PlaceOppDiskID_HW(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  // FlipCnt
+  void SGP__Inst_FlipCntXY_HW(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  void SGP__Inst_FlipCntID_HW(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  // OppFlipCnt
+  void SGP__Inst_OppFlipCntXY_HW(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  void SGP__Inst_OppFlipCntID_HW(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  // FrontierCnt
+  void SGP__Inst_FrontierCnt_HW(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  // ResetBoard
+  void SGP__Inst_ResetBoard_HW(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  // IsOver
+  void SGP__Inst_IsOver_HW(SGP__hardware_t &hw, const SGP__inst_t &inst);
 };
+
+// SignalGP Functions
+/// Reset the SignalGP evaluation hardware, setting input memory of
+/// main thread to be equal to main_in_mem.
+void EnsembleExp::SGP__ResetHW(const SGP__memory_t &main_in_mem)
+{
+  sgp_eval_hw->ResetHardware();
+  sgp_eval_hw->SetTrait(TRAIT_ID__MOVE, -1);
+  sgp_eval_hw->SetTrait(TRAIT_ID__DONE, 0);
+  sgp_eval_hw->SpawnCore(0, main_in_mem, true);
+}
+
+void EnsembleExp::SGP__InitPopulation_Random()
+{
+  std::cout << "Initializing population randomly!" << std::endl;
+  for (size_t p = 0; p < POP_SIZE; ++p)
+  {
+    SGP__program_t prog(sgp_inst_lib);
+    for (size_t f = 0; f < SGP_FUNCTION_CNT; ++f)
+    {
+      prog.PushFunction();
+      prog[f].affinity.Randomize(*random);
+      for (size_t i = 0; i < SGP_FUNCTION_LEN; ++i)
+      {
+        const size_t instID = random->GetUInt(sgp_inst_lib->GetSize());
+        const size_t a0 = random->GetUInt(0, SGP_PROG_MAX_ARG_VAL);
+        const size_t a1 = random->GetUInt(0, SGP_PROG_MAX_ARG_VAL);
+        const size_t a2 = random->GetUInt(0, SGP_PROG_MAX_ARG_VAL);
+        SGP__inst_t inst(instID, a0, a1, a2);
+        inst.affinity.Randomize(*random);
+        prog[f].PushInst(inst);
+      }
+    }
+    sgp_world->Inject(prog, 1);
+  }
+}
+
+size_t EnsembleExp::SGP__Mutate_FixedLength(SignalGPAgent &agent, emp::Random &rnd)
+{
+  SGP__program_t &program = agent.GetGenome();
+  size_t mut_cnt = 0;
+  // For each function:
+  for (size_t fID = 0; fID < program.GetSize(); ++fID)
+  {
+    // Mutate affinity.
+    for (size_t i = 0; i < program[fID].GetAffinity().GetSize(); ++i)
+    {
+      SGP__tag_t &aff = program[fID].GetAffinity();
+      if (rnd.P(SGP_PER_BIT__TAG_BFLIP_RATE))
+      {
+        ++mut_cnt;
+        aff.Set(i, !aff.Get(i));
+      }
+    }
+    // Substitutions?
+    for (size_t i = 0; i < program[fID].GetSize(); ++i)
+    {
+      SGP__inst_t &inst = program[fID][i];
+      // Mutate affinity (even if it doesn't have one).
+      for (size_t k = 0; k < inst.affinity.GetSize(); ++k)
+      {
+        if (rnd.P(SGP_PER_BIT__TAG_BFLIP_RATE))
+        {
+          ++mut_cnt;
+          inst.affinity.Set(k, !inst.affinity.Get(k));
+        }
+      }
+      // Mutate instruction.
+      if (rnd.P(SGP_PER_INST__SUB_RATE))
+      {
+        ++mut_cnt;
+        inst.id = rnd.GetUInt(program.GetInstLib()->GetSize());
+      }
+      // Mutate arguments (even if they aren't relevent to instruction).
+      for (size_t k = 0; k < SGP__hardware_t::MAX_INST_ARGS; ++k)
+      {
+        if (rnd.P(SGP_PER_INST__SUB_RATE))
+        {
+          ++mut_cnt;
+          inst.args[k] = rnd.GetInt(SGP_PROG_MAX_ARG_VAL);
+        }
+      }
+    }
+  }
+  return mut_cnt;
+}
+
+size_t EnsembleExp::SGP__Mutate_VariableLength(SignalGPAgent &agent, emp::Random &rnd)
+{
+  SGP__program_t &program = agent.GetGenome();
+  size_t mut_cnt = 0;
+  // Duplicate a function?
+  size_t expected_prog_len = program.GetInstCnt();
+  size_t old_content_wall = program.GetSize(); ///< First position (or invalid position) after old content.
+  size_t fID = 0;
+  while (fID < old_content_wall)
+  {
+    bool dup = rnd.P(SGP_PER_FUNC__FUNC_DUP_RATE);
+    bool del = rnd.P(SGP_PER_FUNC__FUNC_DEL_RATE);
+    if (dup && del)
+    {
+      dup = false;
+      del = false;
+    } // If we're about to dup and del, don't do anything.
+    // Do we duplicate?
+    if (dup && ((expected_prog_len + program[fID].GetSize()) <= SGP_PROG_MAX_LENGTH))
+    {
+      // Adjust expected program length (total instructions).
+      expected_prog_len += program[fID].GetSize();
+      // Duplication.
+      program.PushFunction(program[fID]);
+      ++mut_cnt;
+      // Do we delete?
+    }
+    else if (del && program.GetSize() > 1)
+    {
+      // Adjust expected program length (total instructions).
+      expected_prog_len -= program[fID].GetSize();
+      const size_t mfID = program.GetSize() - 1;
+      // Deletion.
+      program[fID] = program[mfID];
+      program.program.resize(mfID);
+      // Should we adjust the wall?
+      if (mfID < old_content_wall)
+      {
+        // We're moving from within the wall, adjust wall.
+        --old_content_wall;
+        --fID;
+      }
+      ++mut_cnt;
+    }
+    ++fID;
+  }
+  // For each function...
+  for (size_t fID = 0; fID < program.GetSize(); ++fID)
+  {
+    // Mutate affinity
+    for (size_t i = 0; i < program[fID].GetAffinity().GetSize(); ++i)
+    {
+      SGP__tag_t &aff = program[fID].GetAffinity();
+      if (rnd.P(SGP_PER_BIT__TAG_BFLIP_RATE))
+      {
+        ++mut_cnt;
+        aff.Set(i, !aff.Get(i));
+      }
+    }
+
+    // Substitution mutations?
+    for (size_t i = 0; i < program[fID].GetSize(); ++i)
+    {
+      SGP__inst_t &inst = program[fID][i];
+      // Mutate affinity (even if it doesn't have one).
+      for (size_t k = 0; k < inst.affinity.GetSize(); ++k)
+      {
+        if (rnd.P(SGP_PER_BIT__TAG_BFLIP_RATE))
+        {
+          ++mut_cnt;
+          inst.affinity.Set(k, !inst.affinity.Get(k));
+        }
+      }
+      // Mutate instruction.
+      if (rnd.P(SGP_PER_INST__SUB_RATE))
+      {
+        ++mut_cnt;
+        inst.id = rnd.GetUInt(program.GetInstLib()->GetSize());
+      }
+      // Mutate arguments (even if they aren't relevent to instruction).
+      for (size_t k = 0; k < SGP__hardware_t::MAX_INST_ARGS; ++k)
+      {
+        if (rnd.P(SGP_PER_INST__SUB_RATE))
+        {
+          ++mut_cnt;
+          inst.args[k] = rnd.GetInt(SGP_PROG_MAX_ARG_VAL);
+        }
+      }
+    }
+    // Insertion/deletion mutations?
+    // - Compute insertions.
+    int num_ins = rnd.GetRandBinomial(program[fID].GetSize(), SGP_PER_INST__INS_RATE);
+    // Ensure that insertions don't exceed maximum program length.
+    if ((num_ins + expected_prog_len) > SGP_PROG_MAX_LENGTH)
+    {
+      num_ins = SGP_PROG_MAX_LENGTH - expected_prog_len;
+    }
+    expected_prog_len += num_ins;
+
+    // Do we need to do any insertions or deletions?
+    if (num_ins > 0 || SGP_PER_INST__DEL_RATE > 0.0)
+    {
+      emp::vector<size_t> ins_locs = emp::RandomUIntVector(rnd, num_ins, 0, program[fID].GetSize());
+      if (ins_locs.size())
+        std::sort(ins_locs.begin(), ins_locs.end(), std::greater<size_t>());
+      SGP__hardware_t::Function new_fun(program[fID].GetAffinity());
+      size_t rhead = 0;
+      size_t num_dels = 0;
+      while (rhead < program[fID].GetSize())
+      {
+        if (ins_locs.size())
+        {
+          if (rhead >= ins_locs.back())
+          {
+            // Insert a random instruction.
+            new_fun.PushInst(rnd.GetUInt(program.GetInstLib()->GetSize()),
+                              rnd.GetInt(SGP_PROG_MAX_ARG_VAL),
+                              rnd.GetInt(SGP_PROG_MAX_ARG_VAL),
+                              rnd.GetInt(SGP_PROG_MAX_ARG_VAL),
+                              SGP__tag_t());
+            new_fun.inst_seq.back().affinity.Randomize(rnd);
+            ++mut_cnt;
+            ins_locs.pop_back();
+            continue;
+          }
+        }
+        // Do we delete this instruction?
+        if (rnd.P(SGP_PER_INST__DEL_RATE) && num_dels < (program[fID].GetSize() - 1))
+        {
+          ++mut_cnt;
+          ++num_dels;
+          --expected_prog_len;
+        }
+        else
+        {
+          new_fun.PushInst(program[fID][rhead]);
+        }
+        ++rhead;
+      }
+      program[fID] = new_fun;
+    }
+  }
+  return mut_cnt;
+}
+
+void EnsembleExp::SGP_Snapshot_SingleFile(size_t update)
+{
+  std::string snapshot_dir = DATA_DIRECTORY + "pop_" + emp::to_string((int)update);
+  mkdir(snapshot_dir.c_str(), ACCESSPERMS);
+  // For each program in the population, dump the full program description in a single file.
+  std::ofstream prog_ofstream(snapshot_dir + "/pop_" + emp::to_string((int)update) + ".pop");
+  for (size_t i = 0; i < sgp_world->GetSize(); ++i)
+  {
+    if (i)
+      prog_ofstream << "===\n";
+    SignalGPAgent &agent = sgp_world->GetOrg(i);
+    agent.program.PrintProgramFull(prog_ofstream);
+  }
+  prog_ofstream.close();
+}
+
+#include "EnsembleExp__InstructionImpl.h"
+
+void Run()
+{
+
+  std::clock_t base_start_time = std::clock();
+
+  // do_begin_run_setup_sig.Trigger();
+  // for (update = 0; update <= GENERATIONS; ++update)
+  // {
+  //   RunStep();
+  //   if (update % POP_SNAPSHOT_INTERVAL == 0)
+  //     do_pop_snapshot_sig.Trigger(update);
+  // }
+
+  std::clock_t base_tot_time = std::clock() - base_start_time;
+  std::cout << "Time = " << 1000.0 * ((double)base_tot_time) / (double)CLOCKS_PER_SEC
+            << " ms." << std::endl;
+
+  
+}
+
 
 #endif
