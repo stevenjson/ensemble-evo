@@ -69,11 +69,39 @@ public:
   using SGP__memory_t = SGP__hardware_t::memory_t;
   using SGP__tag_t = SGP__hardware_t::affinity_t;
 
+  struct SignalGPAgent
+  {
+    SGP__program_t program;
+    size_t agent_id;
+    size_t GetID() const { return agent_id; }
+    void SetID(size_t id) { agent_id = id; }
+
+    SignalGPAgent(const SGP__program_t &_p)
+        : program(_p)
+    {
+      ;
+    }
+
+    SignalGPAgent(const SignalGPAgent &&in)
+        :agent_id(in.agent_id), program(in.program)
+    {
+      ;
+    }
+
+    SignalGPAgent(const SignalGPAgent &in)
+        : agent_id(in.agent_id), program(in.program)
+    {
+      ;
+    }
+
+    SGP__program_t &GetGenome() { return program; }
+  };
+
   // More aliases
   using phenotype_t = emp::vector<double>;
   using data_t = emp::mut_landscape_info<phenotype_t>;
   using mut_count_t = std::unordered_map<std::string, double>;
-  using SGP__world_t = emp::World<SGP__program_t, data_t>;
+  using SGP__world_t = emp::World<SignalGPAgent, data_t>;
   using SGP__genotype_t = SGP__world_t::genotype_t;
 
 protected:
@@ -85,26 +113,10 @@ protected:
   size_t POP_SIZE;
   size_t GENERATIONS;
   size_t EVAL_TIME;
-  size_t REPRESENTATION;
-  std::string TEST_CASE_FILE;
-  std::string ANCESTOR_FPATH;
-  size_t POP_INITIALIZATION_METHOD;
   // Selection Group parameters
   size_t SELECTION_METHOD;
   size_t ELITE_SELECT__ELITE_CNT;
   size_t TOURNAMENT_SIZE;
-  size_t RESOURCE_SELECT__MODE;
-  double RESOURCE_SELECT__RES_AMOUNT;
-  double RESOURCE_SELECT__RES_INFLOW;
-  double RESOURCE_SELECT__OUTFLOW;
-  double RESOURCE_SELECT__FRAC;
-  double RESOURCE_SELECT__MAX_BONUS;
-  double RESOURCE_SELECT__COST;
-  size_t RESOURCE_SELECT__GAME_PHASE_LEN;
-  // Scoring Group parameters
-  double SCORE_MOVE__ILLEGAL_MOVE_VALUE;
-  double SCORE_MOVE__LEGAL_MOVE_VALUE;
-  double SCORE_MOVE__EXPERT_MOVE_VALUE;
   // Othello Group parameters
   size_t OTHELLO_HW_BOARDS;
   // SignalGP program group parameters
@@ -124,18 +136,11 @@ protected:
   double SGP_PER_INST__DEL_RATE;
   double SGP_PER_FUNC__FUNC_DUP_RATE;
   double SGP_PER_FUNC__FUNC_DEL_RATE;
-  // AvidaGP Program group parameters
-  size_t AGP_GENOME_SIZE;
-  // AvidaGP Mutation Group parameters
-  double AGP_PER_INST__SUB_RATE;
   // Data Collection parameters
   size_t SYSTEMATICS_INTERVAL;
   size_t FITNESS_INTERVAL;
   size_t POP_SNAPSHOT_INTERVAL;
   std::string DATA_DIRECTORY;
-  // Analysis parameters
-  size_t ANALYSIS_TYPE;
-  std::string ANALYZE_PROGRAM_FPATH;
 
   // Experiment variables.
   emp::Ptr<emp::Random> random;
@@ -144,6 +149,8 @@ protected:
   size_t eval_time;             ///< Current evaluation time point (within an agent's turn).
   size_t OTHELLO_MAX_ROUND_CNT; ///< What are the maximum number of rounds in game?
   size_t best_agent_id;
+
+  emp::vector<std::function<double(SignalGPAgent &)>> sgp_lexicase_fit_set; ///< Fit set for SGP lexicase selection.
 
   emp::Ptr<OthelloHardware> othello_dreamware; ///< Othello game board dreamware!
 
@@ -154,6 +161,26 @@ protected:
   emp::Ptr<SGP__inst_lib_t> sgp_inst_lib;   ///< SignalGP instruction library.
   emp::Ptr<SGP__event_lib_t> sgp_event_lib; ///< SignalGP event library.
   emp::Ptr<SGP__hardware_t> sgp_eval_hw;    ///< Hardware used to evaluate SignalGP programs during evolution/analysis.
+
+  // --- Signals and functors! ---
+  // Many of these are hardware-specific.
+  // Experiment running/setup signals.
+  emp::Signal<void(void)> do_begin_run_setup_sig; ///< Triggered at begining of run. Shared between AGP and SGP
+  emp::Signal<void(void)> do_pop_init_sig;        ///< Triggered during run setup. Defines way population is initialized.
+  emp::Signal<void(void)> do_evaluation_sig;      ///< Triggered during run step. Should trigger population-wide agent evaluation.
+  emp::Signal<void(void)> do_selection_sig;       ///< Triggered during run step. Should trigger selection (which includes selection, reproduction, and mutation).
+  emp::Signal<void(void)> do_world_update_sig;    ///< Triggered during run step. Should trigger world->Update(), and whatever else should happen right before/after population turnover.
+  // Systematics-specific signals.
+  emp::Signal<void(size_t)> do_pop_snapshot_sig;                      ///< Triggered if we should take a snapshot of the population (as defined by POP_SNAPSHOT_INTERVAL). Should call appropriate functions to take snapshot.
+  emp::Signal<void(size_t pos, double)> record_fit_sig;               ///< Trigger signal before organism gives birth.
+  // Agent evaluation signals.
+  emp::Signal<void(const othello_t &)> begin_turn_sig; ///< Called at beginning of agent turn during evaluation.
+  emp::Signal<void(void)> agent_advance_sig;           ///< Called during agent's turn. Should cause agent to advance by a single timestep.
+
+  std::function<size_t(void)> get_eval_agent_move;                     ///< Should return eval_hardware's current move selection. Hardware-specific! TODO
+  std::function<bool(void)> get_eval_agent_done;                       ///< Should return whether or not eval_hardware is done. Hardware-specific!
+  std::function<player_t(void)> get_eval_agent_playerID;               ///< Should return eval_hardware's current playerID. Hardware-specific!
+  //std::function<double(test_case_t &, othello_idx_t)> calc_test_score; ///< Given a test case and a move, what is the appropriate score? Shared between hardware types.
 
 public:
   EnsembleExp(const EnsembleConfig &config)                                                                                  // @constructor
@@ -200,7 +227,17 @@ public:
 
     // Make the world(s)!
     // - SGP World -
-    sgp_world = emp::NewPtr<SGP__world_t>(random, "SGP-Ensemble-World"); //TODO: Change to agents
+    sgp_world = emp::NewPtr<SGP__world_t>(random, "SGP-Ensemble-World");
+
+    // Configure instruction/event libraries.
+    sgp_inst_lib = emp::NewPtr<SGP__inst_lib_t>();
+    sgp_event_lib = emp::NewPtr<SGP__event_lib_t>();
+
+    // Make data directory.
+    mkdir(DATA_DIRECTORY.c_str(), ACCESSPERMS);
+    if (DATA_DIRECTORY.back() != '/') DATA_DIRECTORY += '/';
+
+
   }
 
   ~EnsembleExp()
@@ -208,12 +245,9 @@ public:
     random.Delete();
     othello_dreamware.Delete();
     sgp_world.Delete();
-    // agp_world.Delete();
-    // sgp_inst_lib.Delete();
-    // agp_inst_lib.Delete();
-    // sgp_event_lib.Delete();
-    // sgp_eval_hw.Delete();
-    // agp_eval_hw.Delete();
+    sgp_inst_lib.Delete();
+    sgp_event_lib.Delete();
+    sgp_eval_hw.Delete();
   }
 
   void Run()
