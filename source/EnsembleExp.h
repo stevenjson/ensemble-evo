@@ -97,6 +97,15 @@ public:
     SGP__program_t &GetGenome() { return program; }
   };
 
+  struct Phenotype
+  {
+    emp::vector<double> testcase_scores;
+    size_t illegal_move_total;
+    size_t valid_move_total;
+    size_t expert_move_total;
+    double aggregate_score;
+  };
+
   // More aliases
   using phenotype_t = emp::vector<double>;
   using data_t = emp::mut_landscape_info<phenotype_t>;
@@ -150,7 +159,9 @@ protected:
   size_t OTHELLO_MAX_ROUND_CNT; ///< What are the maximum number of rounds in game?
   size_t best_agent_id;
 
-  emp::vector<std::function<double(SignalGPAgent &)>> sgp_lexicase_fit_set; ///< Fit set for SGP lexicase selection.
+  emp::vector<std::function<double(SignalGPAgent &)>> heuristics; 
+
+  emp::vector<Phenotype> agent_phen_cache;
 
   emp::Ptr<OthelloHardware> othello_dreamware; ///< Othello game board dreamware!
 
@@ -215,6 +226,98 @@ protected:
     return facing_t::N; //< Should never get here.
   }
 
+  othello_idx_t EvalMove__GP(othello_t &game, bool promise_validity = false)
+  {
+    // Signal begin_turn
+    begin_turn_sig.Trigger(game);
+    // Run agent until time is up or until agent indicates it is done evaluating.
+    for (eval_time = 0; eval_time < EVAL_TIME && !get_eval_agent_done(); ++eval_time)
+    {
+      agent_advance_sig.Trigger();
+    }
+    // Extract agent's move.
+    othello_idx_t move = GetOthelloIndex(get_eval_agent_move());
+    // Did we promise a valid move?
+    if (promise_validity)
+    {
+      // Double-check move validity.
+      const player_t playerID = get_eval_agent_playerID();
+      if (!game.IsValidMove(playerID, move))
+      {
+        // Move is not valid. Needs to be fixed, so set it to the nearest valid move.
+        emp::vector<othello_idx_t> valid_moves = game.GetMoveOptions(playerID);
+        const size_t move_x = move.x();
+        const size_t move_y = move.y();
+        size_t new_move_x = 0;
+        size_t new_move_y = 0;
+        size_t sq_move_dist = game.GetNumCells() * game.GetNumCells();
+        for (size_t i = 0; i < valid_moves.size(); ++i)
+        {
+          const size_t proposed_x = valid_moves[i].x();
+          const size_t proposed_y = valid_moves[i].y();
+          const size_t proposed_dist = std::pow(proposed_x - move_x, 2) + std::pow(proposed_y - move_y, 2);
+          if (proposed_dist < sq_move_dist)
+          {
+            new_move_x = proposed_x;
+            new_move_y = proposed_y;
+            sq_move_dist = proposed_dist;
+          }
+        }
+        move.Set(new_move_x, new_move_y);
+      }
+    }
+    return move;
+  }
+
+  /// Returns a random valid move.
+  othello_idx_t EvalMove__Random(othello_t &game, player_t playerID, bool promise_validity = false)
+  {
+    emp::vector<othello_idx_t> options = game.GetMoveOptions(playerID);
+    return options[random->GetUInt(0, options.size())];
+  }
+
+  /// Run all tests on current eval hardware.
+  void Evaluate(SignalGPAgent &agent)
+  {
+    const size_t id = agent.GetID();
+    Phenotype &phen = agent_phen_cache[id];
+    // Reset score and various phenotype information.
+    double score = 0.0;
+    phen.illegal_move_total = 0;
+    phen.valid_move_total = 0;
+    phen.expert_move_total = 0;
+    // Evaluate agent on all test cases.
+    // for (cur_testcase = 0; cur_testcase < testcases.GetSize(); ++cur_testcase)
+    // {
+    //   const double test_score = this->RunTest(id, cur_testcase);
+    //   phen.testcase_scores[cur_testcase] = test_score;
+    //   if (test_score == SCORE_MOVE__EXPERT_MOVE_VALUE)
+    //   {
+    //     phen.expert_move_total += 1;
+    //     phen.valid_move_total += 1;
+    //   }
+    //   else if (test_score == SCORE_MOVE__LEGAL_MOVE_VALUE)
+    //   {
+    //     phen.valid_move_total += 1;
+    //   }
+    //   else if (test_score == SCORE_MOVE__ILLEGAL_MOVE_VALUE)
+    //   {
+    //     phen.illegal_move_total += 1;
+    //   }
+    //   else
+    //   {
+    //     std::cout << "Trying to record phenotype information about move types. Something went horribly wrong." << std::endl;
+    //     exit(-1);
+    //   }
+    //   score += test_score;
+    // }
+    // phen.aggregate_score = score;
+
+    // Trigger systematics-recording functions:
+    record_fit_sig.Trigger(id, score);
+    // record_phen_sig.Trigger(id, phen.testcase_scores); // TODO: pass reference instead of full vector.
+  }
+
 public:
   EnsembleExp(const EnsembleConfig &config)                                                                                  // @constructor
       : update(0), eval_time(0), OTHELLO_MAX_ROUND_CNT(0), best_agent_id(0) //,
@@ -254,6 +357,16 @@ public:
 
     // What is the maximum number of rounds for an othello game?
     OTHELLO_MAX_ROUND_CNT = (OTHELLO_BOARD_WIDTH * OTHELLO_BOARD_WIDTH) - 4;
+
+    agent_phen_cache.resize(POP_SIZE);
+    for (size_t i = 0; i < agent_phen_cache.size(); ++i)
+    {
+      agent_phen_cache[i].testcase_scores.resize(0);
+      agent_phen_cache[i].illegal_move_total = 0; //TODO: reset these between evaluations
+      agent_phen_cache[i].valid_move_total = 0;
+      agent_phen_cache[i].expert_move_total = 0;
+      agent_phen_cache[i].aggregate_score = 0;
+    }
 
     // Configure the dreamware!
     othello_dreamware = emp::NewPtr<OthelloHardware>(1);
@@ -324,7 +437,8 @@ public:
 
   // Population snapshot functions
   void SGP_Snapshot_SingleFile(size_t update);
-  void AGP_Snapshot_SingleFile(size_t update);
+
+  void EvalGame();
 
   // SignalGP utility functions.
   void SGP__InitPopulation_Random();
@@ -644,6 +758,11 @@ void EnsembleExp::ConfigSGP(){
     sgp_world->SetMutFun([this](SignalGPAgent &agent, emp::Random &rnd) { return this->SGP__Mutate_FixedLength(agent, rnd); }, ELITE_SELECT__ELITE_CNT);
   }
 
+  std::function<double(SignalGPAgent &agent)> random_player = [this](SignalGPAgent &agent) {
+     return 1;
+  };
+  //heuristic.push_back();
+
   // TODO: Set up calc fitness
 
   ConfigSGP_InstLib();
@@ -678,6 +797,7 @@ void EnsembleExp::ConfigSGP(){
     do_pop_init_sig.Trigger();
   });
 
+  // - Configure evaluation
   do_evaluation_sig.AddAction([this]() {
     double best_score = -32767;
     best_agent_id = 0;
@@ -688,8 +808,13 @@ void EnsembleExp::ConfigSGP(){
       SignalGPAgent &our_hero = sgp_world->GetOrg(id);
       our_hero.SetID(id);
       sgp_eval_hw->SetProgram(our_hero.GetGenome());
-      // this->Evaluate(our_hero);
-      // TODO: add eval functions
+      //this->Evaluate(our_hero);
+      Phenotype &phen = agent_phen_cache[id];
+      if (phen.aggregate_score > best_score)
+      {
+        best_score = phen.aggregate_score;
+        best_agent_id = id;
+      }
     }
     std::cout << "Update: " << update << " Max score: " << best_score << std::endl;
   });

@@ -8,7 +8,7 @@
 #include "config/ArgManager.h"
 
 #include "../ensemble-config.h"
-#include "../EnsembleExp.h"
+#include "../ensemble.h"
 
 int main(int argc, char* argv[])
 {
