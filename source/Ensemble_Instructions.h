@@ -111,10 +111,9 @@ void EnsembleExp::ConfigSGP_InstLib() {
   sgp_inst_lib->AddInst("FrontierCnt-HW",
                         [this](SGP__hardware_t & hw, const SGP__inst_t & inst) { this->SGP__Inst_FrontierCnt_HW(hw, inst); },
                         1, "WM[ARG1] = Agent's frontier count on othello hardware board");
-  // sgp_inst_lib->AddInst("ResetBoard-HW",
-  //                       [this](SGP__hardware_t & hw, const SGP__inst_t & inst) { this->SGP__Inst_ResetBoard_HW(hw, inst); },
-  //                       0, "Reset active othello hardware board.");
-  // TODO FIx this
+  sgp_inst_lib->AddInst("ResetBoard-HW",
+                        [this](SGP__hardware_t & hw, const SGP__inst_t & inst) { this->SGP__Inst_ResetBoard_HW(hw, inst); },
+                        0, "Reset active othello hardware board.");
   sgp_inst_lib->AddInst("IsOver-HW",
                         [this](SGP__hardware_t & hw, const SGP__inst_t & inst) { this->SGP__Inst_IsOver_HW(hw, inst); },
                         1, "Is game over on active othello hardware board?");
@@ -400,9 +399,9 @@ void EnsembleExp::SGP__Inst_FrontierCnt_HW(SGP__hardware_t & hw, const SGP__inst
   state.SetLocal(inst.args[0], dreamboard.CountFrontierPos(playerID));
 }
 // // SGP_Inst_ResetBoard_HW
-// void EnsembleExp::SGP__Inst_ResetBoard_HW(SGP__hardware_t & hw, const SGP__inst_t & inst) {
-//   othello_dreamware->ResetActive(testcases[cur_testcase].GetInput().game);
-// }
+void EnsembleExp::SGP__Inst_ResetBoard_HW(SGP__hardware_t & hw, const SGP__inst_t & inst) {
+  othello_dreamware->ResetActive(*game_hw);
+}
 // SGP_Inst_IsOver_HW
 void EnsembleExp::SGP__Inst_IsOver_HW(SGP__hardware_t & hw, const SGP__inst_t & inst) {
   SGP__state_t & state = hw.GetCurState();

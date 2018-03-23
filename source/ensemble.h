@@ -148,16 +148,26 @@ protected:
 
   emp::Ptr<OthelloHardware> othello_dreamware; ///< Othello game board dreamware!
 
+  emp::Ptr<othello_t> game_hw;
+
   size_t update;                ///< Current update/generation.
   size_t eval_time;             ///< Current evaluation time point (within an agent's turn).
   size_t OTHELLO_MAX_ROUND_CNT; ///< What are the maximum number of rounds in game?
   size_t best_agent_id;
+
+  emp::vector<Phenotype> agent_phen_cache;
+
+  emp::vector<std::function<othello_idx_t(SignalGPAgent &)>> heuristics;
 
   // SignalGP-specifics.
   emp::Ptr<SGP__world_t> sgp_world;         ///< World for evolving SignalGP agents.
   emp::Ptr<SGP__inst_lib_t> sgp_inst_lib;   ///< SignalGP instruction library.
   emp::Ptr<SGP__event_lib_t> sgp_event_lib; ///< SignalGP event library.
   emp::Ptr<SGP__hardware_t> sgp_eval_hw;    ///< Hardware used to evaluate SignalGP programs during evolution/analysis.
+
+  // Systematics-specific signals.
+  emp::Signal<void(size_t)> do_pop_snapshot_sig;                      ///< Triggered if we should take a snapshot of the population (as defined by POP_SNAPSHOT_INTERVAL). Should call appropriate functions to take snapshot.
+  emp::Signal<void(size_t pos, double)> record_fit_sig;               ///< Trigger signal before organism gives birth.
 
   /// Get othello board index given *any* position.
   /// If position can't be used to make an Othello::Index struct, clamp it so that it can.
@@ -230,8 +240,19 @@ public:
     // What is the maximum number of rounds for an othello game?
     OTHELLO_MAX_ROUND_CNT = (OTHELLO_BOARD_WIDTH * OTHELLO_BOARD_WIDTH) - 4;
 
+    agent_phen_cache.resize(POP_SIZE);
+    for (size_t i = 0; i < agent_phen_cache.size(); ++i)
+    {
+      agent_phen_cache[i].testcase_scores.resize(0);
+      agent_phen_cache[i].illegal_move_total = 0;
+      agent_phen_cache[i].valid_move_total = 0;
+      agent_phen_cache[i].expert_move_total = 0;
+      agent_phen_cache[i].aggregate_score = 0;
+    }
+
     // Configure the dreamware!
     othello_dreamware = emp::NewPtr<OthelloHardware>(1);
+    game_hw = emp::NewPtr<othello_t>();
 
     // Make the world(s)!
     // - SGP World -
@@ -256,7 +277,22 @@ public:
     sgp_inst_lib.Delete();
     sgp_event_lib.Delete();
     sgp_eval_hw.Delete();
+    game_hw.Delete();
   }
+
+  void RunSetup();
+  void RunStep();
+  void Run();
+
+  void ResetHardware();
+
+  void ConfigHeuristics();
+  double EvalGame(SignalGPAgent &agent, std::function<othello_idx_t(SignalGPAgent &)> &heuristic_func);
+  othello_idx_t EvalMove(SignalGPAgent &agent);
+
+  void Evaluate();
+  void Selection();
+  void Update();
 
   // Config functions. These do all of the hardware-specific experiment setup/configuration.
   void ConfigSGP();
@@ -268,8 +304,6 @@ public:
 
   // Population snapshot functions
   void SGP_Snapshot_SingleFile(size_t update);
-
-  void EvalGame();
 
   // SignalGP utility functions.
   void SGP__InitPopulation_Random();

@@ -24,6 +24,36 @@ void EnsembleExp::ConfigSGP() {
   sgp_eval_hw->SetMinBindThresh(SGP_HW_MIN_BIND_THRESH);
   sgp_eval_hw->SetMaxCores(SGP_HW_MAX_CORES);
   sgp_eval_hw->SetMaxCallDepth(SGP_HW_MAX_CALL_DEPTH);
+
+  // do_pop_snapshot
+  do_pop_snapshot_sig.AddAction([this](size_t update) { this->SGP_Snapshot_SingleFile(update); });
+}
+
+// SignalGP Functions
+/// Reset the SignalGP evaluation hardware, setting input memory of
+/// main thread to be equal to main_in_mem.
+void EnsembleExp::SGP__ResetHW(const SGP__memory_t &main_in_mem)
+{
+  sgp_eval_hw->ResetHardware();
+  sgp_eval_hw->SetTrait(TRAIT_ID__MOVE, -1);
+  sgp_eval_hw->SetTrait(TRAIT_ID__DONE, 0);
+  sgp_eval_hw->SpawnCore(0, main_in_mem, true);
+}
+
+void EnsembleExp::SGP_Snapshot_SingleFile(size_t update)
+{
+  std::string snapshot_dir = DATA_DIRECTORY + "pop_" + emp::to_string((int)update);
+  mkdir(snapshot_dir.c_str(), ACCESSPERMS);
+  // For each program in the population, dump the full program description in a single file.
+  std::ofstream prog_ofstream(snapshot_dir + "/pop_" + emp::to_string((int)update) + ".pop");
+  for (size_t i = 0; i < sgp_world->GetSize(); ++i)
+  {
+    if (i)
+      prog_ofstream << "===\n";
+    SignalGPAgent &agent = sgp_world->GetOrg(i);
+    agent.program.PrintProgramFull(prog_ofstream);
+  }
+  prog_ofstream.close();
 }
 
 size_t EnsembleExp::SGP__Mutate_FixedLength(SignalGPAgent &agent, emp::Random &rnd)
@@ -244,6 +274,144 @@ void EnsembleExp::SGP__InitPopulation_Random()
     }
     sgp_world->Inject(prog, 1);
   }
+}
+
+void EnsembleExp::ConfigHeuristics()
+{
+  std::cout<<"Configuring Heuristic Functions!"<<std::endl;
+
+  std::function<othello_idx_t(SignalGPAgent &)> random_player = [this](SignalGPAgent &agent) {
+    emp::vector<othello_idx_t> options = game_hw->GetMoveOptions();
+    return options[random->GetUInt(0, options.size())];
+  };
+
+  // TODO Add the rest of the heuristic functions here
+
+  heuristics.push_back(random_player);
+
+  // TODO Put other heuristic functions in vector
+
+}
+
+void EnsembleExp::RunSetup()
+{
+  std::cout << "Doing initial run setup." << std::endl;
+
+  // Setup fitness tracking.
+  auto &fit_file = sgp_world->SetupFitnessFile(DATA_DIRECTORY + "fitness.csv");
+  fit_file.SetTimingRepeat(FITNESS_INTERVAL);
+  record_fit_sig.AddAction([this](size_t pos, double fitness) { sgp_world->GetGenotypeAt(pos)->GetData().RecordFitness(fitness); });
+
+  // Generate the initial population.
+  SGP__InitPopulation_Random();
+
+  ConfigHeuristics();
+}
+
+/// Do a single step of evolution.
+void EnsembleExp::RunStep()
+{
+  Evaluate();   // Update agent scores.
+  // do_selection_sig.Trigger();    // Do selection (selection, reproduction, mutation).
+  // do_world_update_sig.Trigger(); // Do world update (population turnover, clear score caches).
+}
+
+void EnsembleExp::Run()
+{
+  std::clock_t base_start_time = std::clock();
+
+  RunSetup();
+  for (update = 0; update <= GENERATIONS; ++update)
+  {
+    RunStep();
+    break; //TODO Remove this
+    if (update % POP_SNAPSHOT_INTERVAL == 0)
+      do_pop_snapshot_sig.Trigger(update);
+  }
+
+  std::clock_t base_tot_time = std::clock() - base_start_time;
+  std::cout << "Time = " << 1000.0 * ((double)base_tot_time) / (double)CLOCKS_PER_SEC
+            << " ms." << std::endl;
+}
+
+void EnsembleExp::ResetHardware()
+{
+  SGP__ResetHW();
+  othello_dreamware->Reset(*game_hw);
+  othello_dreamware->SetActiveDream(0);
+}
+
+EnsembleExp::othello_idx_t EnsembleExp::EvalMove(SignalGPAgent &agent)
+{
+  ResetHardware();
+  // Run agent until time is up or until agent indicates it is done evaluating.
+  for (eval_time = 0; eval_time < EVAL_TIME && !(bool)sgp_eval_hw->GetTrait(TRAIT_ID__DONE); ++eval_time)
+  { 
+    sgp_eval_hw->SingleProcess();
+  }
+
+  return GetOthelloIndex((size_t)sgp_eval_hw->GetTrait(TRAIT_ID__MOVE));
+}
+
+double EnsembleExp::EvalGame(SignalGPAgent &agent, std::function<othello_idx_t(SignalGPAgent &)> &heuristic_func)
+{
+  game_hw->Reset();
+  size_t curr_player = random->GetInt(0,2); //Choose start player, 0 is individual, 1 is heuristic
+  othello_dreamware->SetPlayerID( (curr_player == 0) ? othello_t::DARK : othello_t::LIGHT); //TODO
+
+  for(size_t round_num = 0; round_num < OTHELLO_MAX_ROUND_CNT; ++round_num)
+  {
+    othello_idx_t move = (curr_player == 0) ? EvalMove(agent) : heuristic_func(agent);
+
+    //Check if valid move
+    bool valid_move = game_hw->IsValidMove(game_hw->GetCurPlayer(), move);
+
+    if (round_num == 20) break;
+
+    // Do move
+
+    //Check who's turn it is
+
+    // Calculate score?
+
+    //Check if game over
+
+    
+
+    //TODO finish game eval
+  }
+  std::cout<<round_num<<std::endl;
+  exit(0);
+
+  heuristic_func(agent);
+  return 0;
+}
+
+
+void EnsembleExp::Evaluate()
+{
+  double best_score = -32767;
+  best_agent_id = 0;
+
+  for (size_t id = 0; id < sgp_world->GetSize(); ++id)
+  {
+    // std::cout << "Evaluating agent: " << id << std::endl;
+    // Evaluate agent given by id.
+    SignalGPAgent &our_hero = sgp_world->GetOrg(id);
+    our_hero.SetID(id);
+    sgp_eval_hw->SetProgram(our_hero.GetGenome());
+    for (size_t i = 0; i < heuristics.size(); ++i)
+    {
+      EvalGame(our_hero, heuristics[i]);
+    }
+    Phenotype &phen = agent_phen_cache[id];
+    if (phen.aggregate_score > best_score)
+    {
+      best_score = phen.aggregate_score;
+      best_agent_id = id;
+    }
+  }
+  std::cout << "Update: " << update << " Max score: " << best_score << std::endl;
 }
 
 #endif
