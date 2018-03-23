@@ -337,7 +337,7 @@ void EnsembleExp::Run()
 void EnsembleExp::ResetHardware()
 {
   SGP__ResetHW();
-  othello_dreamware->Reset(*game_hw);
+  othello_dreamware->Reset(*game_hw); // TODO is this correct?
   othello_dreamware->SetActiveDream(0);
 }
 
@@ -356,34 +356,34 @@ EnsembleExp::othello_idx_t EnsembleExp::EvalMove(SignalGPAgent &agent)
 double EnsembleExp::EvalGame(SignalGPAgent &agent, std::function<othello_idx_t(SignalGPAgent &)> &heuristic_func)
 {
   game_hw->Reset();
-  size_t curr_player = random->GetInt(0,2); //Choose start player, 0 is individual, 1 is heuristic
+  double score = 0;
+  bool curr_player = random->GetInt(0,2); //Choose start player, 0 is individual, 1 is heuristic
   othello_dreamware->SetPlayerID( (curr_player == 0) ? othello_t::DARK : othello_t::LIGHT); //TODO
 
   for(size_t round_num = 0; round_num < OTHELLO_MAX_ROUND_CNT; ++round_num)
   {
     othello_idx_t move = (curr_player == 0) ? EvalMove(agent) : heuristic_func(agent);
+    score = round_num;
 
     //Check if valid move
-    bool valid_move = game_hw->IsValidMove(game_hw->GetCurPlayer(), move);
+    if (!game_hw->IsValidMove(game_hw->GetCurPlayer(), move))
+    {
+      emp_assert(curr_player != 1); // Heuristic should not give an invalid move
+      return score;
+    }
 
-    if (round_num == 20) break;
-
-    // Do move
-
-    //Check who's turn it is
-
-    // Calculate score?
-
-    //Check if game over
-
-    
-
-    //TODO finish game eval
+    bool go_again = game_hw->DoNextMove(move); // Do move
+    if (game_hw->IsOver()) break;
+    if (!go_again) !curr_player; //Change current player if you don't get another turn
   }
-  std::cout<<round_num<<std::endl;
+
+  emp_assert(game_hw->IsOver());
+  int rounds_left = OTHELLO_MAX_ROUND_CNT - (score + 1); // no bonus if you use all rounds
+  emp_assert(rounds_left >= 0); 
+  score = 2 * OTHELLO_MAX_ROUND_CNT;
+  int game_score = game_hw->GetScore(game_hw->GetCurPlayer()) - game_hw->GetScore(game_hw->GetOpponent());
   exit(0);
 
-  heuristic_func(agent);
   return 0;
 }
 
