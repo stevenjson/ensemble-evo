@@ -20,9 +20,12 @@ EMP_BUILD_CONFIG( EnsembleConfig,
   VALUE(OTHELLO_HW_BOARDS, size_t, 1, "How many dream boards are given to agents for them to manipulate?"),
 
   GROUP(SGP_PROGRAM_GROUP, "SignalGP program Settings"),
-  VALUE(SGP_FUNCTION_LEN, size_t, 50, "Used for generating SGP programs. How long are functions?"),
-  VALUE(SGP_FUNCTION_CNT, size_t, 4, "Used for generating SGP programs. How many functions do we generate?"),
+  VALUE(SGP_MAX_FUNCTION_LEN, size_t, 50, "Used for generating SGP programs. How long are functions?"),
+  VALUE(SGP_MIN_FUNCTION_LEN, size_t, 1, "TODO"),
+  VALUE(SGP_MAX_FUNCTION_CNT, size_t, 4, "Used for generating SGP programs. How many functions do we generate?"),
+  VALUE(SGP_MIN_FUNC_CNT, size_t, 1, "TODO"),
   VALUE(SGP_PROG_MAX_LENGTH, size_t, 200, "Maximum length of SGP program (used for variable length programs)"),
+
 
   GROUP(SGP_HARDWARE_GROUP, "SignalGP Hardware Settings"),
   VALUE(SGP_HW_MAX_CORES, size_t, 16, "Max number of hardware cores; i.e., max number of simultaneous threads of execution hardware will support."),
@@ -38,6 +41,7 @@ EMP_BUILD_CONFIG( EnsembleConfig,
   VALUE(SGP_PER_INST__DEL_RATE, double, 0.005, "Per-instruction deletion mutation rate."),
   VALUE(SGP_PER_FUNC__FUNC_DUP_RATE, double, 0.05, "Per-function rate of function duplications."),
   VALUE(SGP_PER_FUNC__FUNC_DEL_RATE, double, 0.05, "Per-function rate of function deletions."),
+  VALUE(SGP_PER_FUNC__SLIP_RATE, double, 0.05, "TODO"),
 
   GROUP(DATA_GROUP, "Data Collection Settings"),
   VALUE(FITNESS_INTERVAL, size_t, 100, "Interval to record fitness summary stats."),

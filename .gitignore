@@ -4,6 +4,8 @@
 .vscode/
 lineage
 ensemble
+fitness.csv
+pop_*/
 
 # Compiled Object files
 *.slo

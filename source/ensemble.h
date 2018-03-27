@@ -64,6 +64,7 @@ public:
   using SGP__memory_t = SGP__hardware_t::memory_t;
   using SGP__tag_t = SGP__hardware_t::affinity_t;
 
+  // Agent structure to be used to wrap organisms
   struct SignalGPAgent
   {
     SGP__program_t program;
@@ -92,16 +93,15 @@ public:
     SGP__program_t &GetGenome() { return program; }
   };
 
+  // Struct to keep track of fitness for all heuristic functions
   struct Phenotype
   {
-    emp::vector<double> testcase_scores;
+    emp::vector<double> heuristic_scores;
     size_t illegal_move_total;
-    size_t valid_move_total;
-    size_t expert_move_total;
     double aggregate_score;
   };
 
-  // More aliases
+  // Aliases for defined structs
   using phenotype_t = emp::vector<double>;
   using data_t = emp::mut_landscape_info<phenotype_t>;
   using SGP__world_t = emp::World<SignalGPAgent, data_t>;
@@ -121,8 +121,10 @@ protected:
   // Othello Group parameters
   size_t OTHELLO_HW_BOARDS;
   // SignalGP program group parameters
-  size_t SGP_FUNCTION_LEN;
-  size_t SGP_FUNCTION_CNT;
+  size_t SGP_MAX_FUNCTION_LEN;
+  size_t SGP_MIN_FUNCTION_LEN;
+  size_t SGP_MAX_FUNCTION_CNT;
+  size_t SGP_MIN_FUNC_CNT;
   size_t SGP_PROG_MAX_LENGTH;
   // SignalGP Hardware Group parameters
   size_t SGP_HW_MAX_CORES;
@@ -137,45 +139,49 @@ protected:
   double SGP_PER_INST__DEL_RATE;
   double SGP_PER_FUNC__FUNC_DUP_RATE;
   double SGP_PER_FUNC__FUNC_DEL_RATE;
+  double SGP_PER_FUNC__SLIP_RATE;
   // Data Collection parameters
   size_t SYSTEMATICS_INTERVAL;
   size_t FITNESS_INTERVAL;
   size_t POP_SNAPSHOT_INTERVAL;
   std::string DATA_DIRECTORY;
 
-  // Experiment variables.
   emp::Ptr<emp::Random> random;
+  
+  // Expirement hardware
+  emp::Ptr<OthelloHardware> othello_dreamware;  ///< Othello game board dreamware!
+  emp::Ptr<SGP__hardware_t> sgp_eval_hw;        ///< Hardware used to evaluate SignalGP programs during evolution/analysis.
+  emp::Ptr<othello_t> game_hw;                  ///< Hardware used to evaluate games during fitness calculation
 
-  emp::Ptr<OthelloHardware> othello_dreamware; ///< Othello game board dreamware!
-
-  emp::Ptr<othello_t> game_hw;
-
+  // Expirement variables
   size_t update;                ///< Current update/generation.
   size_t eval_time;             ///< Current evaluation time point (within an agent's turn).
   size_t OTHELLO_MAX_ROUND_CNT; ///< What are the maximum number of rounds in game?
-  size_t best_agent_id;
+  size_t best_agent_id;         ///< What is the id of the current best organism?
 
-  emp::vector<Phenotype> agent_phen_cache;
-
-  emp::vector<std::function<othello_idx_t(SignalGPAgent &)>> heuristics;
+  /// Fitness vectors
+  emp::vector<Phenotype> agent_phen_cache;                                  ///< Cache for organims fitness.
+  emp::vector<std::function<othello_idx_t(SignalGPAgent &)>> heuristics;    ///< Heuristic functions for fitness evaluation.
+  emp::vector<std::function<double(SignalGPAgent &)>> sgp_lexicase_fit_set; ///< Fit set for SGP lexicase selection.
 
   // SignalGP-specifics.
   emp::Ptr<SGP__world_t> sgp_world;         ///< World for evolving SignalGP agents.
   emp::Ptr<SGP__inst_lib_t> sgp_inst_lib;   ///< SignalGP instruction library.
   emp::Ptr<SGP__event_lib_t> sgp_event_lib; ///< SignalGP event library.
-  emp::Ptr<SGP__hardware_t> sgp_eval_hw;    ///< Hardware used to evaluate SignalGP programs during evolution/analysis.
 
-  // Systematics-specific signals.
+  // Systematics-specific signals for data tracking.
   emp::Signal<void(size_t)> do_pop_snapshot_sig;                      ///< Triggered if we should take a snapshot of the population (as defined by POP_SNAPSHOT_INTERVAL). Should call appropriate functions to take snapshot.
-  emp::Signal<void(size_t pos, double)> record_fit_sig;               ///< Trigger signal before organism gives birth.
+  emp::Signal<void(size_t pos, double)> record_fit_sig;               ///< Trigger signal before organism gives birth that records fitness.
+  emp::Signal<void(size_t pos, const phenotype_t &)> record_phen_sig; ///< Trigger signal before organism gives birth that records phenotypic info.
 
   /// Get othello board index given *any* position.
-  /// If position can't be used to make an Othello::Index struct, clamp it so that it can.
+  /// If position can't be used to make an Othello::Index struct, clamp it so that it can (becomes 64 if invalid).
   othello_idx_t GetOthelloIndex(size_t pos)
   {
     return (pos > OTHELLO_BOARD_NUM_CELLS) ? OTHELLO_BOARD_NUM_CELLS : pos;
   }
 
+  /// Converts a numeric direction to an othello game facing.
   facing_t IntToFacing(int dir)
   {
     dir = emp::Mod(dir, othello_t::NUM_DIRECTIONS);
@@ -203,6 +209,8 @@ protected:
   }
 
 public:
+  /// Constructor for the expirement.
+  /// param: config, the configured parameters for the expirement
   EnsembleExp(const EnsembleConfig &config) 
     : update(0), eval_time(0), OTHELLO_MAX_ROUND_CNT(0), best_agent_id(0) {
 
@@ -216,8 +224,10 @@ public:
     ELITE_SELECT__ELITE_CNT = config.ELITE_SELECT__ELITE_CNT();
     TOURNAMENT_SIZE = config.TOURNAMENT_SIZE();
     OTHELLO_HW_BOARDS = config.OTHELLO_HW_BOARDS();
-    SGP_FUNCTION_LEN = config.SGP_FUNCTION_LEN();
-    SGP_FUNCTION_CNT = config.SGP_FUNCTION_CNT();
+    SGP_MAX_FUNCTION_LEN = config.SGP_MAX_FUNCTION_LEN();
+    SGP_MIN_FUNCTION_LEN = config.SGP_MIN_FUNCTION_LEN();
+    SGP_MAX_FUNCTION_CNT = config.SGP_MAX_FUNCTION_CNT();
+    SGP_MIN_FUNC_CNT = config.SGP_MIN_FUNC_CNT();
     SGP_PROG_MAX_LENGTH = config.SGP_PROG_MAX_LENGTH();
     SGP_HW_MAX_CORES = config.SGP_HW_MAX_CORES();
     SGP_HW_MAX_CALL_DEPTH = config.SGP_HW_MAX_CALL_DEPTH();
@@ -230,6 +240,7 @@ public:
     SGP_PER_INST__DEL_RATE = config.SGP_PER_INST__DEL_RATE();
     SGP_PER_FUNC__FUNC_DUP_RATE = config.SGP_PER_FUNC__FUNC_DUP_RATE();
     SGP_PER_FUNC__FUNC_DEL_RATE = config.SGP_PER_FUNC__FUNC_DEL_RATE();
+    SGP_PER_FUNC__SLIP_RATE = config.SGP_PER_FUNC__SLIP_RATE();
     FITNESS_INTERVAL = config.FITNESS_INTERVAL();
     POP_SNAPSHOT_INTERVAL = config.POP_SNAPSHOT_INTERVAL();
     DATA_DIRECTORY = config.DATA_DIRECTORY();
@@ -240,22 +251,24 @@ public:
     // What is the maximum number of rounds for an othello game?
     OTHELLO_MAX_ROUND_CNT = (OTHELLO_BOARD_WIDTH * OTHELLO_BOARD_WIDTH) - 4;
 
+    ConfigHeuristics();
+
+    // Initialize fitness caching
     agent_phen_cache.resize(POP_SIZE);
     for (size_t i = 0; i < agent_phen_cache.size(); ++i)
     {
-      agent_phen_cache[i].testcase_scores.resize(0);
+      agent_phen_cache[i].heuristic_scores.resize(heuristics.size());
       agent_phen_cache[i].illegal_move_total = 0;
-      agent_phen_cache[i].valid_move_total = 0;
-      agent_phen_cache[i].expert_move_total = 0;
       agent_phen_cache[i].aggregate_score = 0;
     }
 
     // Configure the dreamware!
     othello_dreamware = emp::NewPtr<OthelloHardware>(1);
+
+    // Configure game evaluation hardware.
     game_hw = emp::NewPtr<othello_t>();
 
-    // Make the world(s)!
-    // - SGP World -
+    // Make the world
     sgp_world = emp::NewPtr<SGP__world_t>(random, "SGP-Ensemble-World");
 
     // Configure instruction/event libraries.
@@ -269,6 +282,7 @@ public:
     ConfigSGP();
   }
 
+  /// Destructor for the expirement.
   ~EnsembleExp()
   {
     random.Delete();
@@ -280,16 +294,24 @@ public:
     game_hw.Delete();
   }
 
-  void RunSetup();
-  void RunStep();
+  /// Fitness function for cached fitness
+  double CalcFitness(SignalGPAgent &agent)
+  {
+    return agent_phen_cache[agent.GetID()].aggregate_score;
+  }
+
+  // -- Declaration of methods defined in ensemble_func.h --
   void Run();
+  void RunStep();
+  void RunSetup();
 
   void ResetHardware();
 
-  void ConfigHeuristics();
+  // Functions to manage othello games
   double EvalGame(SignalGPAgent &agent, std::function<othello_idx_t(SignalGPAgent &)> &heuristic_func);
   othello_idx_t EvalMove(SignalGPAgent &agent);
 
+  // Functions run in each step of evolution
   void Evaluate();
   void Selection();
   void Update();
@@ -297,6 +319,7 @@ public:
   // Config functions. These do all of the hardware-specific experiment setup/configuration.
   void ConfigSGP();
   void ConfigSGP_InstLib();
+  void ConfigHeuristics();
 
   // Mutation functions
   size_t SGP__Mutate_FixedLength(SignalGPAgent &agent, emp::Random &rnd);
@@ -309,7 +332,7 @@ public:
   void SGP__InitPopulation_Random();
   void SGP__ResetHW(const SGP__memory_t &main_in_mem = SGP__memory_t());
 
-  // -- SignalGP Instructions --
+  // -- Declarations of SignalGP Instructions defined in Ensemble_Instructions.h --
   // Fork
   void SGP__Inst_Fork(SGP__hardware_t &hw, const SGP__inst_t &inst);
   // BoardWidth
@@ -360,7 +383,5 @@ public:
 
 #include "Ensemble_Instructions.h"
 #include "ensemble_func.h"
-
-
 
 #endif
