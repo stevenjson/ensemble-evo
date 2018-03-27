@@ -25,9 +25,7 @@
 #include "tools/random_utils.h"
 #include "tools/math.h"
 #include "tools/string_utils.h"
-#include "TestcaseSet.h"
 #include "OthelloHW.h"
-#include "OthelloLookup.h"
 #include "ensemble-config.h"
 
 constexpr size_t SGP__TAG_WIDTH = 16;
