@@ -206,6 +206,7 @@ protected:
   emp::Signal<void(size_t)> do_pop_snapshot_sig;                      ///< Triggered if we should take a snapshot of the population (as defined by POP_SNAPSHOT_INTERVAL). Should call appropriate functions to take snapshot.
   emp::Signal<void(size_t pos, double)> record_fit_sig;               ///< Trigger signal before organism gives birth that records fitness.
   emp::Signal<void(size_t pos, const phenotype_t &)> record_phen_sig; ///< Trigger signal before organism gives birth that records phenotypic info.
+  emp::Signal<void(void)> do_pop_init_sig;                            ///< Triggered during run setup. Defines way population is initialized.
 
   /// Get othello board index given *any* position.
   /// If position can't be used to make an Othello::Index struct, clamp it so that it can (becomes 64 if invalid).
@@ -334,6 +335,8 @@ public:
         break;
 
       case REPRESENTATION_ID__SIGNALGPGROUP:
+        emp_assert(POP_SIZE % GROUP_SIZE == 0);
+        POP_SIZE = POP_SIZE / GROUP_SIZE;
         ConfigSGPG();
         break;
 
@@ -341,8 +344,6 @@ public:
         std::cout << "Unrecognized representation configuration setting (" << REPRESENTATION << "). Exiting..." << std::endl;
         exit(-1);
     }
-
-    exit(-9); //TODO
   }
 
   /// Destructor for the expirement.
@@ -402,6 +403,7 @@ public:
 
   // SignalGP utility functions.
   void SGP__InitPopulation_Random();
+  void SGPG__InitPopulation_Random();
   void SGP__ResetHW(const SGP__memory_t &main_in_mem = SGP__memory_t());
 
   // -- Declarations of SignalGP Instructions defined in Ensemble_Instructions.h --

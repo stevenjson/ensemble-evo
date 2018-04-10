@@ -20,6 +20,18 @@ void EnsembleExp::ConfigSGP() {
   }
 
   sgp_world->SetFitFun([this](SignalGPAgent &agent) { return this->CalcFitness(agent); });
+
+  // Setup fitness tracking.
+  auto &fit_file = sgp_world->SetupFitnessFile(DATA_DIRECTORY + "fitness.csv");
+  fit_file.SetTimingRepeat(FITNESS_INTERVAL);
+  record_fit_sig.AddAction([this](size_t pos, double fitness) { sgp_world->GetGenotypeAt(pos)->GetData().RecordFitness(fitness); });
+
+  // Setup phenotype tracking
+  //TODO: AddBestPhenotypeFile(*sgp_world, DATA_DIRECTORY + "best_phenotype.csv").SetTimingRepeat(SYSTEMATICS_INTERVAL);
+  record_phen_sig.AddAction([this](size_t pos, const phenotype_t &phen) { sgp_world->GetGenotypeAt(pos)->GetData().RecordPhenotype(phen); });
+
+  // Generate the initial population.
+  do_pop_init_sig.AddAction([this]() { this->SGP__InitPopulation_Random(); });
 }
 
 /// Configure the world settings for the expirement
@@ -27,7 +39,6 @@ void EnsembleExp::ConfigSGPG() {
   // Configure the world.
   sgpg_world->Reset();
   sgpg_world->SetWellMixed(true);
-  std::cout<<"HERE"<<std::endl;
 
   // Setup mutation function.
   if (SGP_VARIABLE_LENGTH)
@@ -41,6 +52,18 @@ void EnsembleExp::ConfigSGPG() {
   }
 
   sgpg_world->SetFitFun([this](GroupSignalGPAgent &agent) { return this->CalcFitness(agent); });
+
+  // Setup fitness tracking.
+  auto &fit_file = sgpg_world->SetupFitnessFile(DATA_DIRECTORY + "fitness.csv");
+  fit_file.SetTimingRepeat(FITNESS_INTERVAL);
+  record_fit_sig.AddAction([this](size_t pos, double fitness) { sgpg_world->GetGenotypeAt(pos)->GetData().RecordFitness(fitness); });
+
+  // Setup phenotype tracking
+  //TODO: AddBestPhenotypeFile(*sgpg_world, DATA_DIRECTORY + "best_phenotype.csv").SetTimingRepeat(SYSTEMATICS_INTERVAL);
+  record_phen_sig.AddAction([this](size_t pos, const phenotype_t &phen) { sgpg_world->GetGenotypeAt(pos)->GetData().RecordPhenotype(phen); });
+
+  // Generate the initial population.
+  do_pop_init_sig.AddAction([this]() { this->SGPG__InitPopulation_Random(); });
 }
 
 /// Reset the SignalGP evaluation hardware, setting input memory of
@@ -573,6 +596,38 @@ void EnsembleExp::SGP__InitPopulation_Random()
   }
 }
 
+/// Creates initial population of organisms with random genomes and injects them into the world.
+void EnsembleExp::SGPG__InitPopulation_Random()
+{
+  std::cout << "Initializing population randomly!" << std::endl;
+
+  for (size_t p = 0; p < POP_SIZE; ++p)
+  {
+    emp::vector<SGP__program_t> programs;
+    for (size_t i = 0; i < GROUP_SIZE; ++i)
+    {
+      SGP__program_t prog(sgp_inst_lib);
+      for (size_t f = 0; f < SGP_MAX_FUNCTION_CNT; ++f)
+      {
+        prog.PushFunction();
+        prog[f].affinity.Randomize(*random);
+        for (size_t i = 0; i < SGP_MAX_FUNCTION_LEN; ++i)
+        {
+          const size_t instID = random->GetUInt(sgp_inst_lib->GetSize()); // Get random instruction
+          const size_t a0 = random->GetUInt(0, SGP_PROG_MAX_ARG_VAL);     // Get random register for arg 1
+          const size_t a1 = random->GetUInt(0, SGP_PROG_MAX_ARG_VAL);     // Get random register for arg 2
+          const size_t a2 = random->GetUInt(0, SGP_PROG_MAX_ARG_VAL);     // Get random register for arg 3
+          SGP__inst_t inst(instID, a0, a1, a2);
+          inst.affinity.Randomize(*random);
+          prog[f].PushInst(inst);
+        }
+      }
+      programs.push_back(prog);
+    }
+    sgpg_world->Inject(programs, 1);
+  }
+}
+
 /// Configure different types of othello programs to compete organisms against 
 /// when calculating fitness.
 void EnsembleExp::ConfigHeuristics()
@@ -597,17 +652,9 @@ void EnsembleExp::RunSetup()
 {
   std::cout << "Doing initial run setup." << std::endl;
 
-  // Setup fitness tracking.
-  auto &fit_file = sgp_world->SetupFitnessFile(DATA_DIRECTORY + "fitness.csv");
-  fit_file.SetTimingRepeat(FITNESS_INTERVAL);
-  record_fit_sig.AddAction([this](size_t pos, double fitness) { sgp_world->GetGenotypeAt(pos)->GetData().RecordFitness(fitness); });
-
-  // Setup phenotype tracking
-  //TODO: AddBestPhenotypeFile(*sgp_world, DATA_DIRECTORY + "best_phenotype.csv").SetTimingRepeat(SYSTEMATICS_INTERVAL);
-  record_phen_sig.AddAction([this](size_t pos, const phenotype_t &phen) { sgp_world->GetGenotypeAt(pos)->GetData().RecordPhenotype(phen); });
-
   // Generate the initial population.
-  SGP__InitPopulation_Random();
+  do_pop_init_sig.Trigger();
+  exit(0);
 }
 
 /// Do a single step of evolution.
