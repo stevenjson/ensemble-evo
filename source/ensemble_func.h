@@ -654,7 +654,6 @@ void EnsembleExp::RunSetup()
 
   // Generate the initial population.
   do_pop_init_sig.Trigger();
-  exit(0);
 }
 
 /// Do a single step of evolution.
