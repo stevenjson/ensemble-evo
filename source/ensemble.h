@@ -33,6 +33,9 @@ constexpr size_t SGP__TAG_WIDTH = 16;
 constexpr size_t OTHELLO_BOARD_WIDTH = 8;
 constexpr size_t OTHELLO_BOARD_NUM_CELLS = OTHELLO_BOARD_WIDTH * OTHELLO_BOARD_WIDTH;
 
+constexpr size_t REPRESENTATION_ID__SIGNALGP = 0;
+constexpr size_t REPRESENTATION_ID__SIGNALGPGROUP = 1;
+
 constexpr size_t TRAIT_ID__MOVE = 0;
 constexpr size_t TRAIT_ID__DONE = 1;
 
@@ -91,6 +94,34 @@ public:
     SGP__program_t &GetGenome() { return program; }
   };
 
+  struct GroupSignalGPAgent
+  {
+    emp::vector<SGP__program_t> programs;
+    size_t agent_id;
+    size_t GetID() const { return agent_id; }
+    void SetID(size_t id) { agent_id = id; }
+
+    GroupSignalGPAgent(const emp::vector<SGP__program_t> &_p)
+        : programs(_p)
+    {
+      ;
+    }
+
+    GroupSignalGPAgent(const GroupSignalGPAgent &&in)
+        : agent_id(in.agent_id), programs(in.programs)
+    {
+      ;
+    }
+
+    GroupSignalGPAgent(const GroupSignalGPAgent &in)
+        : agent_id(in.agent_id), programs(in.programs)
+    {
+      ;
+    }
+
+    emp::vector<SGP__program_t> &GetGenome() { return programs; }
+  };
+
   // Struct to keep track of fitness for all heuristic functions
   struct Phenotype
   {
@@ -103,6 +134,7 @@ public:
   using phenotype_t = emp::vector<double>;
   using data_t = emp::mut_landscape_info<phenotype_t>;
   using SGP__world_t = emp::World<SignalGPAgent, data_t>;
+  using SGPG__world_t = emp::World<GroupSignalGPAgent, data_t>;
   using SGP__genotype_t = SGP__world_t::genotype_t;
 
 protected:
@@ -112,6 +144,8 @@ protected:
   size_t POP_SIZE;
   size_t GENERATIONS;
   size_t EVAL_TIME;
+  size_t REPRESENTATION;
+  size_t GROUP_SIZE;
   // Selection Group parameters
   size_t SELECTION_METHOD;
   size_t ELITE_SELECT__ELITE_CNT;
@@ -164,6 +198,7 @@ protected:
 
   // SignalGP-specifics.
   emp::Ptr<SGP__world_t> sgp_world;         ///< World for evolving SignalGP agents.
+  emp::Ptr<SGPG__world_t> sgpg_world;       ///< World for evolving Group SignalGP agents.
   emp::Ptr<SGP__inst_lib_t> sgp_inst_lib;   ///< SignalGP instruction library.
   emp::Ptr<SGP__event_lib_t> sgp_event_lib; ///< SignalGP event library.
 
@@ -218,6 +253,8 @@ public:
     POP_SIZE = config.POP_SIZE();
     GENERATIONS = config.GENERATIONS();
     EVAL_TIME = config.EVAL_TIME();
+    REPRESENTATION = config.REPRESENTATION();
+    GROUP_SIZE = config.GROUP_SIZE();
     SELECTION_METHOD = config.SELECTION_METHOD();
     ELITE_SELECT__ELITE_CNT = config.ELITE_SELECT__ELITE_CNT();
     TOURNAMENT_SIZE = config.TOURNAMENT_SIZE();
@@ -260,14 +297,17 @@ public:
       agent_phen_cache[i].aggregate_score = 0;
     }
 
+    //TODO Cache group phenotype
+
     // Configure the dreamware!
     othello_dreamware = emp::NewPtr<OthelloHardware>(1);
 
     // Configure game evaluation hardware.
     game_hw = emp::NewPtr<othello_t>();
 
-    // Make the world
+    // Make the worlds
     sgp_world = emp::NewPtr<SGP__world_t>(random, "SGP-Ensemble-World");
+    sgpg_world = emp::NewPtr<SGPG__world_t>(random, "SGP-Group-Ensemble-World");
 
     // Configure instruction/event libraries.
     sgp_inst_lib = emp::NewPtr<SGP__inst_lib_t>();
@@ -277,7 +317,32 @@ public:
     mkdir(DATA_DIRECTORY.c_str(), ACCESSPERMS);
     if (DATA_DIRECTORY.back() != '/') DATA_DIRECTORY += '/';
 
-    ConfigSGP();
+    ConfigSGP_InstLib();
+
+    sgp_eval_hw = emp::NewPtr<SGP__hardware_t>(sgp_inst_lib, sgp_event_lib, random);
+    sgp_eval_hw->SetMinBindThresh(SGP_HW_MIN_BIND_THRESH);
+    sgp_eval_hw->SetMaxCores(SGP_HW_MAX_CORES);
+    sgp_eval_hw->SetMaxCallDepth(SGP_HW_MAX_CALL_DEPTH);
+
+    // do_pop_snapshot
+    do_pop_snapshot_sig.AddAction([this](size_t update) { this->SGP_Snapshot_SingleFile(update); });
+
+    switch (REPRESENTATION) 
+    {
+      case REPRESENTATION_ID__SIGNALGP:
+        ConfigSGP();
+        break;
+
+      case REPRESENTATION_ID__SIGNALGPGROUP:
+        ConfigSGPG();
+        break;
+
+      default:
+        std::cout << "Unrecognized representation configuration setting (" << REPRESENTATION << "). Exiting..." << std::endl;
+        exit(-1);
+    }
+
+    exit(-9); //TODO
   }
 
   /// Destructor for the expirement.
@@ -286,6 +351,7 @@ public:
     random.Delete();
     othello_dreamware.Delete();
     sgp_world.Delete();
+    sgpg_world.Delete();
     sgp_inst_lib.Delete();
     sgp_event_lib.Delete();
     sgp_eval_hw.Delete();
@@ -294,6 +360,11 @@ public:
 
   /// Fitness function for cached fitness
   double CalcFitness(SignalGPAgent &agent)
+  {
+    return agent_phen_cache[agent.GetID()].aggregate_score;
+  }
+
+  double CalcFitness(GroupSignalGPAgent &agent)
   {
     return agent_phen_cache[agent.GetID()].aggregate_score;
   }
@@ -316,12 +387,15 @@ public:
 
   // Config functions. These do all of the hardware-specific experiment setup/configuration.
   void ConfigSGP();
+  void ConfigSGPG();
   void ConfigSGP_InstLib();
   void ConfigHeuristics();
 
   // Mutation functions
   size_t SGP__Mutate_FixedLength(SignalGPAgent &agent, emp::Random &rnd);
   size_t SGP__Mutate_VariableLength(SignalGPAgent &agent, emp::Random &rnd);
+  size_t SGPG__Mutate_FixedLength(GroupSignalGPAgent &agent, emp::Random &rnd);
+  size_t SGPG__Mutate_VariableLength(GroupSignalGPAgent &agent, emp::Random &rnd);
 
   // Population snapshot functions
   void SGP_Snapshot_SingleFile(size_t update);
