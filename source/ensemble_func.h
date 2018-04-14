@@ -21,15 +21,49 @@ void EnsembleExp::ConfigSGP() {
 
   sgp_world->SetFitFun([this](SignalGPAgent &agent) { return this->CalcFitness(agent); });
 
-  ConfigSGP_InstLib();
+  // Setup fitness tracking.
+  auto &fit_file = sgp_world->SetupFitnessFile(DATA_DIRECTORY + "fitness.csv");
+  fit_file.SetTimingRepeat(FITNESS_INTERVAL);
+  record_fit_sig.AddAction([this](size_t pos, double fitness) { sgp_world->GetGenotypeAt(pos)->GetData().RecordFitness(fitness); });
 
-  sgp_eval_hw = emp::NewPtr<SGP__hardware_t>(sgp_inst_lib, sgp_event_lib, random);
-  sgp_eval_hw->SetMinBindThresh(SGP_HW_MIN_BIND_THRESH);
-  sgp_eval_hw->SetMaxCores(SGP_HW_MAX_CORES);
-  sgp_eval_hw->SetMaxCallDepth(SGP_HW_MAX_CALL_DEPTH);
+  // Setup phenotype tracking
+  //TODO: AddBestPhenotypeFile(*sgp_world, DATA_DIRECTORY + "best_phenotype.csv").SetTimingRepeat(SYSTEMATICS_INTERVAL);
+  record_phen_sig.AddAction([this](size_t pos, const phenotype_t &phen) { sgp_world->GetGenotypeAt(pos)->GetData().RecordPhenotype(phen); });
 
-  // do_pop_snapshot
-  do_pop_snapshot_sig.AddAction([this](size_t update) { this->SGP_Snapshot_SingleFile(update); });
+  // Generate the initial population.
+  do_pop_init_sig.AddAction([this]() { this->SGP__InitPopulation_Random(); });
+}
+
+/// Configure the world settings for the expirement
+void EnsembleExp::ConfigSGPG() {
+  // Configure the world.
+  sgpg_world->Reset();
+  sgpg_world->SetWellMixed(true);
+
+  // Setup mutation function.
+  if (SGP_VARIABLE_LENGTH)
+  {
+    sgpg_world->SetMutFun([this](GroupSignalGPAgent &agent, emp::Random &rnd) { return this->SGPG__Mutate_VariableLength(agent, rnd); }, ELITE_SELECT__ELITE_CNT);
+  }
+  else
+  {
+    // NOTE: second argument specifies that we're not mutating the first thing int the pop (we're doing elite selection in all of our stuff).
+    sgpg_world->SetMutFun([this](GroupSignalGPAgent &agent, emp::Random &rnd) { return this->SGPG__Mutate_FixedLength(agent, rnd); }, ELITE_SELECT__ELITE_CNT);
+  }
+
+  sgpg_world->SetFitFun([this](GroupSignalGPAgent &agent) { return this->CalcFitness(agent); });
+
+  // Setup fitness tracking.
+  auto &fit_file = sgpg_world->SetupFitnessFile(DATA_DIRECTORY + "fitness.csv");
+  fit_file.SetTimingRepeat(FITNESS_INTERVAL);
+  record_fit_sig.AddAction([this](size_t pos, double fitness) { sgpg_world->GetGenotypeAt(pos)->GetData().RecordFitness(fitness); });
+
+  // Setup phenotype tracking
+  //TODO: AddBestPhenotypeFile(*sgpg_world, DATA_DIRECTORY + "best_phenotype.csv").SetTimingRepeat(SYSTEMATICS_INTERVAL);
+  record_phen_sig.AddAction([this](size_t pos, const phenotype_t &phen) { sgpg_world->GetGenotypeAt(pos)->GetData().RecordPhenotype(phen); });
+
+  // Generate the initial population.
+  do_pop_init_sig.AddAction([this]() { this->SGPG__InitPopulation_Random(); });
 }
 
 /// Reset the SignalGP evaluation hardware, setting input memory of
@@ -107,6 +141,63 @@ size_t EnsembleExp::SGP__Mutate_FixedLength(SignalGPAgent &agent, emp::Random &r
         {
           ++mut_cnt;
           inst.args[k] = rnd.GetInt(SGP_PROG_MAX_ARG_VAL);
+        }
+      }
+    }
+  }
+  return mut_cnt;
+}
+
+/// Mutation function where genome length is always the same for each function in SGP
+/// param: agent, our current organism we are mutating
+/// param: rnd, the random number generator
+/// return: mut_count, total mutations for this agent
+size_t EnsembleExp::SGPG__Mutate_FixedLength(GroupSignalGPAgent &agent, emp::Random &rnd)
+{
+  emp::vector<SGP__program_t> &programs = agent.GetGenome();
+  size_t mut_cnt = 0;
+
+  for (auto program : programs){
+    // For each function:
+    for (size_t fID = 0; fID < program.GetSize(); ++fID)
+    {
+      // Mutate affinity.
+      for (size_t i = 0; i < program[fID].GetAffinity().GetSize(); ++i)
+      {
+        SGP__tag_t &aff = program[fID].GetAffinity();
+        if (rnd.P(SGP_PER_BIT__TAG_BFLIP_RATE))
+        {
+          ++mut_cnt;
+          aff.Set(i, !aff.Get(i));
+        }
+      }
+      // Substitutions?
+      for (size_t i = 0; i < program[fID].GetSize(); ++i)
+      {
+        SGP__inst_t &inst = program[fID][i];
+        // Mutate affinity (even if it doesn't have one).
+        for (size_t k = 0; k < inst.affinity.GetSize(); ++k)
+        {
+          if (rnd.P(SGP_PER_BIT__TAG_BFLIP_RATE))
+          {
+            ++mut_cnt;
+            inst.affinity.Set(k, !inst.affinity.Get(k));
+          }
+        }
+        // Mutate instruction.
+        if (rnd.P(SGP_PER_INST__SUB_RATE))
+        {
+          ++mut_cnt;
+          inst.id = rnd.GetUInt(program.GetInstLib()->GetSize());
+        }
+        // Mutate arguments (even if they aren't relevent to instruction).
+        for (size_t k = 0; k < SGP__hardware_t::MAX_INST_ARGS; ++k)
+        {
+          if (rnd.P(SGP_PER_INST__SUB_RATE))
+          {
+            ++mut_cnt;
+            inst.args[k] = rnd.GetInt(SGP_PROG_MAX_ARG_VAL);
+          }
         }
       }
     }
@@ -295,6 +386,190 @@ size_t EnsembleExp::SGP__Mutate_VariableLength(SignalGPAgent &agent, emp::Random
   return mut_cnt;
 }
 
+/// Mutation function where genome length can vary from insertions and deletions for each function in SGP.
+/// param: agent, our current organism we are mutating
+/// param: rnd, the random number generator
+/// return: mut_count, total mutations for this agent
+size_t EnsembleExp::SGPG__Mutate_VariableLength(GroupSignalGPAgent &agent, emp::Random &rnd)
+{
+  emp::vector<SGP__program_t> &programs = agent.GetGenome();
+  size_t mut_cnt = 0;
+
+  for (auto program : programs){
+    size_t expected_prog_len = program.GetInstCnt();
+
+    // Duplicate a (single) function?
+    if (rnd.P(SGP_PER_FUNC__FUNC_DUP_RATE) && program.GetSize() < SGP_MAX_FUNCTION_CNT)
+    {
+      const uint32_t fID = rnd.GetUInt(program.GetSize());
+      // Would function duplication make expected program length exceed max?
+      if (expected_prog_len + program[fID].GetSize() <= SGP_PROG_MAX_LENGTH)
+      {
+        program.PushFunction(program[fID]);
+        expected_prog_len += program[fID].GetSize();
+        ++mut_cnt;
+      }
+    }
+
+    // Delete a (single) function?
+    if (rnd.P(SGP_PER_FUNC__FUNC_DEL_RATE) && program.GetSize() > SGP_MIN_FUNC_CNT)
+    {
+      const uint32_t fID = rnd.GetUInt(program.GetSize());
+      expected_prog_len -= program[fID].GetSize();
+      program[fID] = program[program.GetSize() - 1];
+      program.program.resize(program.GetSize() - 1);
+      ++mut_cnt;
+    }
+
+    // For each function...
+    for (size_t fID = 0; fID < program.GetSize(); ++fID)
+    {
+
+      // Mutate affinity
+      for (size_t i = 0; i < program[fID].GetAffinity().GetSize(); ++i)
+      {
+        SGP__tag_t &aff = program[fID].GetAffinity();
+        if (rnd.P(SGP_PER_BIT__TAG_BFLIP_RATE))
+        {
+          ++mut_cnt;
+          aff.Set(i, !aff.Get(i));
+        }
+      }
+
+      // Slip-mutation?
+      if (rnd.P(SGP_PER_FUNC__SLIP_RATE))
+      {
+        uint32_t begin = rnd.GetUInt(program[fID].GetSize());
+        uint32_t end = rnd.GetUInt(program[fID].GetSize());
+        const bool dup = begin < end;
+        const bool del = begin > end;
+        const int dup_size = end - begin;
+        const int del_size = begin - end;
+        // If we would be duplicating and the result will not exceed maximum program length, duplicate!
+        if (dup && (expected_prog_len + dup_size <= SGP_PROG_MAX_LENGTH) && (program[fID].GetSize() + dup_size <= SGP_MAX_FUNCTION_LEN))
+        {
+          // duplicate begin:end
+          const size_t new_size = program[fID].GetSize() + (size_t)dup_size;
+          SGP__hardware_t::Function new_fun(program[fID].GetAffinity());
+          for (size_t i = 0; i < new_size; ++i)
+          {
+            if (i < end)
+              new_fun.PushInst(program[fID][i]);
+            else
+              new_fun.PushInst(program[fID][i - dup_size]);
+          }
+          program[fID] = new_fun;
+          ++mut_cnt;
+          expected_prog_len += dup_size;
+        }
+        else if (del && ((program[fID].GetSize() - del_size) >= SGP_MIN_FUNCTION_LEN))
+        {
+          // delete end:begin
+          SGP__hardware_t::Function new_fun(program[fID].GetAffinity());
+          for (size_t i = 0; i < end; ++i)
+            new_fun.PushInst(program[fID][i]);
+          for (size_t i = begin; i < program[fID].GetSize(); ++i)
+            new_fun.PushInst(program[fID][i]);
+          program[fID] = new_fun;
+          ++mut_cnt;
+          expected_prog_len -= del_size;
+        }
+      }
+
+      // Substitution mutations? (pretty much completely safe)
+      for (size_t i = 0; i < program[fID].GetSize(); ++i)
+      {
+        SGP__inst_t &inst = program[fID][i];
+        // Mutate affinity (even when it doesn't use it).
+        for (size_t k = 0; k < inst.affinity.GetSize(); ++k)
+        {
+          if (rnd.P(SGP_PER_BIT__TAG_BFLIP_RATE))
+          {
+            ++mut_cnt;
+            inst.affinity.Set(k, !inst.affinity.Get(k));
+          }
+        }
+
+        // Mutate instruction.
+        if (rnd.P(SGP_PER_INST__SUB_RATE))
+        {
+          ++mut_cnt;
+          inst.id = rnd.GetUInt(program.GetInstLib()->GetSize());
+        }
+
+        // Mutate arguments (even if they aren't relevent to instruction).
+        for (size_t k = 0; k < SGP__hardware_t::MAX_INST_ARGS; ++k)
+        {
+          if (rnd.P(SGP_PER_INST__SUB_RATE))
+          {
+            ++mut_cnt;
+            inst.args[k] = rnd.GetInt(SGP_PROG_MAX_ARG_VAL);
+          }
+        }
+      }
+
+      // Insertion/deletion mutations?
+      // - Compute number of insertions.
+      int num_ins = rnd.GetRandBinomial(program[fID].GetSize(), SGP_PER_INST__INS_RATE);
+      // Ensure that insertions don't exceed maximum program length.
+      if ((num_ins + program[fID].GetSize()) > SGP_MAX_FUNCTION_LEN)
+      {
+        num_ins = SGP_MAX_FUNCTION_LEN - program[fID].GetSize();
+      }
+      if ((num_ins + expected_prog_len) > SGP_PROG_MAX_LENGTH)
+      {
+        num_ins = SGP_PROG_MAX_LENGTH - expected_prog_len;
+      }
+      expected_prog_len += num_ins;
+
+      // Do we need to do any insertions or deletions?
+      if (num_ins > 0 || SGP_PER_INST__DEL_RATE > 0.0)
+      {
+        size_t expected_func_len = num_ins + program[fID].GetSize();
+        // Compute insertion locations and sort them.
+        emp::vector<size_t> ins_locs = emp::RandomUIntVector(rnd, num_ins, 0, program[fID].GetSize());
+        if (ins_locs.size())
+          std::sort(ins_locs.begin(), ins_locs.end(), std::greater<size_t>());
+        SGP__hardware_t::Function new_fun(program[fID].GetAffinity());
+        size_t rhead = 0;
+        while (rhead < program[fID].GetSize())
+        {
+          if (ins_locs.size())
+          {
+            if (rhead >= ins_locs.back())
+            {
+              // Insert a random instruction.
+              new_fun.PushInst(rnd.GetUInt(program.GetInstLib()->GetSize()),
+                              rnd.GetInt(SGP_PROG_MAX_ARG_VAL),
+                              rnd.GetInt(SGP_PROG_MAX_ARG_VAL),
+                              rnd.GetInt(SGP_PROG_MAX_ARG_VAL),
+                              SGP__tag_t());
+              new_fun.inst_seq.back().affinity.Randomize(rnd);
+              ++mut_cnt;
+              ins_locs.pop_back();
+              continue;
+            }
+          }
+          // Do we delete this instruction?
+          if (rnd.P(SGP_PER_INST__DEL_RATE) && (expected_func_len > SGP_MIN_FUNCTION_LEN))
+          {
+            ++mut_cnt;
+            --expected_prog_len;
+            --expected_func_len;
+          }
+          else
+          {
+            new_fun.PushInst(program[fID][rhead]);
+          }
+          ++rhead;
+        }
+        program[fID] = new_fun;
+      }
+    }
+  }
+  return mut_cnt;
+}
+
 /// Creates initial population of organisms with random genomes and injects them into the world.
 void EnsembleExp::SGP__InitPopulation_Random()
 {
@@ -318,6 +593,38 @@ void EnsembleExp::SGP__InitPopulation_Random()
       }
     }
     sgp_world->Inject(prog, 1);
+  }
+}
+
+/// Creates initial population of organisms with random genomes and injects them into the world.
+void EnsembleExp::SGPG__InitPopulation_Random()
+{
+  std::cout << "Initializing population randomly!" << std::endl;
+
+  for (size_t p = 0; p < POP_SIZE; ++p)
+  {
+    emp::vector<SGP__program_t> programs;
+    for (size_t i = 0; i < GROUP_SIZE; ++i)
+    {
+      SGP__program_t prog(sgp_inst_lib);
+      for (size_t f = 0; f < SGP_MAX_FUNCTION_CNT; ++f)
+      {
+        prog.PushFunction();
+        prog[f].affinity.Randomize(*random);
+        for (size_t i = 0; i < SGP_MAX_FUNCTION_LEN; ++i)
+        {
+          const size_t instID = random->GetUInt(sgp_inst_lib->GetSize()); // Get random instruction
+          const size_t a0 = random->GetUInt(0, SGP_PROG_MAX_ARG_VAL);     // Get random register for arg 1
+          const size_t a1 = random->GetUInt(0, SGP_PROG_MAX_ARG_VAL);     // Get random register for arg 2
+          const size_t a2 = random->GetUInt(0, SGP_PROG_MAX_ARG_VAL);     // Get random register for arg 3
+          SGP__inst_t inst(instID, a0, a1, a2);
+          inst.affinity.Randomize(*random);
+          prog[f].PushInst(inst);
+        }
+      }
+      programs.push_back(prog);
+    }
+    sgpg_world->Inject(programs, 1);
   }
 }
 
@@ -416,17 +723,8 @@ void EnsembleExp::RunSetup()
 {
   std::cout << "Doing initial run setup." << std::endl;
 
-  // Setup fitness tracking.
-  auto &fit_file = sgp_world->SetupFitnessFile(DATA_DIRECTORY + "fitness.csv");
-  fit_file.SetTimingRepeat(FITNESS_INTERVAL);
-  record_fit_sig.AddAction([this](size_t pos, double fitness) { sgp_world->GetGenotypeAt(pos)->GetData().RecordFitness(fitness); });
-
-  // Setup phenotype tracking
-  //TODO: AddBestPhenotypeFile(*sgp_world, DATA_DIRECTORY + "best_phenotype.csv").SetTimingRepeat(SYSTEMATICS_INTERVAL);
-  record_phen_sig.AddAction([this](size_t pos, const phenotype_t &phen) { sgp_world->GetGenotypeAt(pos)->GetData().RecordPhenotype(phen); });
-
   // Generate the initial population.
-  SGP__InitPopulation_Random();
+  do_pop_init_sig.Trigger();
 }
 
 /// Do a single step of evolution.

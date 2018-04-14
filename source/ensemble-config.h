@@ -10,6 +10,8 @@ EMP_BUILD_CONFIG( EnsembleConfig,
   VALUE(POP_SIZE, size_t, 1000, "Total population size"),
   VALUE(GENERATIONS, size_t, 5000, "How many generations should we run evolution?"),
   VALUE(EVAL_TIME, size_t, 1000, "Agent evaluation time (how much time an agent has on a single turn)"),
+  VALUE(REPRESENTATION, size_t, 0, "Which ensemble method are we using? \n0: Individual \n1: Group \n2: Group with Communication"),
+  VALUE(GROUP_SIZE, size_t, 5, "How many organisms in an ensemble?"),
 
   GROUP(SELECTION_GROUP, "Selection Settings"),
   VALUE(SELECTION_METHOD, size_t, 0, "Which selection method are we using? \n0: Tournament\n1: Lexicase\n2: Eco-EA (resource)\n3: MAP-Elites\n4: Roulette"),
