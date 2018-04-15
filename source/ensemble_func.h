@@ -31,7 +31,24 @@ void EnsembleExp::ConfigSGP() {
   record_phen_sig.AddAction([this](size_t pos, const phenotype_t &phen) { sgp_world->GetGenotypeAt(pos)->GetData().RecordPhenotype(phen); });
 
   // Generate the initial population.
-  do_pop_init_sig.AddAction([this]() { this->SGP__InitPopulation_Random(); });
+  switch (INIT_METHOD)
+  {
+    case INIT_RANDOM:
+      do_pop_init_sig.AddAction([this]() { this->SGP__InitPopulation_Random(); });
+      break;
+
+    case INIT_ANCESTOR:
+      do_pop_init_sig.AddAction([this]() { this->SGP__InitPopulation_FromAncestorFile(); });
+      break;
+
+    default:
+      std::cout << "Unrecognized initialization method configuration setting (" << INIT_METHOD << "). Exiting..." << std::endl;
+      exit(-1);
+  }
+  
+  do_evaluation_sig.AddAction([this]() { this->Evaluate(); });
+  do_selection_sig.AddAction([this]() { this->Selection(); });
+  do_world_update_sig.AddAction([this]() { sgp_world->Update(); });
 }
 
 /// Configure the world settings for the expirement
@@ -63,7 +80,24 @@ void EnsembleExp::ConfigSGPG() {
   record_phen_sig.AddAction([this](size_t pos, const phenotype_t &phen) { sgpg_world->GetGenotypeAt(pos)->GetData().RecordPhenotype(phen); });
 
   // Generate the initial population.
-  do_pop_init_sig.AddAction([this]() { this->SGPG__InitPopulation_Random(); });
+  switch (INIT_METHOD)
+  {
+    case INIT_RANDOM:
+      do_pop_init_sig.AddAction([this]() { this->SGPG__InitPopulation_Random(); });
+      break;
+
+    case INIT_ANCESTOR:
+      do_pop_init_sig.AddAction([this]() { this->SGPG__InitPopulation_FromAncestorFile(); });
+      break;
+
+    default:
+      std::cout << "Unrecognized initialization method configuration setting (" << INIT_METHOD << "). Exiting..." << std::endl;
+      exit(-1);
+  }
+
+  do_evaluation_sig.AddAction([this]() { this->EvaluateGroup(); });
+  do_selection_sig.AddAction([this]() { this->SelectionGroup(); });
+  do_world_update_sig.AddAction([this]() { sgpg_world->Update(); });
 }
 
 /// Reset the SignalGP evaluation hardware, setting input memory of
@@ -87,7 +121,7 @@ void EnsembleExp::SGP_Snapshot_SingleFile(size_t update)
   for (size_t i = 0; i < sgp_world->GetSize(); ++i)
   {
     if (i)
-      prog_ofstream << "===\n";
+      prog_ofstream << "$\n";
     SignalGPAgent &agent = sgp_world->GetOrg(i);
     agent.program.PrintProgramFull(prog_ofstream);
   }
@@ -596,6 +630,24 @@ void EnsembleExp::SGP__InitPopulation_Random()
   }
 }
 
+void EnsembleExp::SGP__InitPopulation_FromAncestorFile()
+{
+  std::cout << "Initializing population from ancestor file!" << std::endl;
+  // Configure the ancestor program.
+  SGP__program_t ancestor_prog(sgp_inst_lib);
+  std::ifstream ancestor_fstream(ANCESTOR_FPATH);
+  if (!ancestor_fstream.is_open())
+  {
+    std::cout << "Failed to open ancestor program file(" << ANCESTOR_FPATH << "). Exiting..." << std::endl;
+    exit(-1);
+  }
+  ancestor_prog.Load(ancestor_fstream);
+  std::cout << " --- Ancestor program: ---" << std::endl;
+  ancestor_prog.PrintProgramFull();
+  std::cout << " -------------------------" << std::endl;
+  sgp_world->Inject(ancestor_prog, 1); // Inject a bunch of ancestors into the population.
+}
+
 /// Creates initial population of organisms with random genomes and injects them into the world.
 void EnsembleExp::SGPG__InitPopulation_Random()
 {
@@ -628,13 +680,43 @@ void EnsembleExp::SGPG__InitPopulation_Random()
   }
 }
 
+void EnsembleExp::SGPG__InitPopulation_FromAncestorFile()
+{
+  std::cout << "Initializing population from ancestor file!" << std::endl;
+  // Configure the ancestor program.
+  emp::vector<SGP__program_t> ancestor_programs;
+  
+  std::ifstream ancestor_fstream(ANCESTOR_FPATH);
+  if (!ancestor_fstream.is_open())
+  {
+    std::cout << "Failed to open ancestor program file(" << ANCESTOR_FPATH << "). Exiting..." << std::endl;
+    exit(-1);
+  }
+
+  for (int i = 0; i < GROUP_SIZE; ++i)
+  {
+    std::string genome_txt;
+    SGP__program_t ancestor_prog(sgp_inst_lib);
+    emp_assert(!ancestor_fstream == false);
+
+    std::getline(ancestor_fstream, genome_txt, '$');
+    std::stringstream ss(genome_txt);
+    ancestor_prog.Load(ss);
+    std::cout << " --- Ancestor program: ---" << std::endl;
+    ancestor_prog.PrintProgramFull();
+    std::cout << " -------------------------" << std::endl;
+    ancestor_programs.push_back(ancestor_prog);
+  }
+  sgpg_world->Inject(ancestor_programs, 1); // Inject a bunch of ancestors into the population. TODO
+}
+
 /// Configure different types of othello programs to compete organisms against 
 /// when calculating fitness.
 void EnsembleExp::ConfigHeuristics()
 {
   std::cout<<"Configuring Heuristic Functions!"<<std::endl;
 
-  std::function<othello_idx_t(SignalGPAgent &)> random_player = [this](SignalGPAgent &agent) {
+  std::function<othello_idx_t()> random_player = [this]() {
     emp::vector<othello_idx_t> options = game_hw->GetMoveOptions();
     return options[random->GetUInt(0, options.size())];
   };
@@ -659,9 +741,9 @@ void EnsembleExp::RunSetup()
 /// Do a single step of evolution.
 void EnsembleExp::RunStep()
 {
-  Evaluate();   // Update agent scores.
-  Selection();    // Do selection (selection, reproduction, mutation).
-  sgp_world->Update(); // Do world update (population turnover, clear score caches).
+  do_evaluation_sig.Trigger();   // Update agent scores.
+  do_selection_sig.Trigger();    // Do selection (selection, reproduction, mutation).
+  do_world_update_sig.Trigger(); // Do world update (population turnover, clear score caches).
 }
 
 /// The 'main' function for the class. Calling it starts the expirement.
@@ -705,11 +787,45 @@ EnsembleExp::othello_idx_t EnsembleExp::EvalMove(SignalGPAgent &agent)
   return GetOthelloIndex((size_t)sgp_eval_hw->GetTrait(TRAIT_ID__MOVE));
 }
 
+/// Evaluate a single move for the currently selected organism.
+/// param: agent, the current organism to evaluate
+/// returns: the given agent's move
+EnsembleExp::othello_idx_t EnsembleExp::EvalMoveGroup(GroupSignalGPAgent &agent)
+{
+  emp::array<size_t, OTHELLO_BOARD_NUM_CELLS> votes = {};
+  emp::vector<size_t> move_choices;
+  size_t most_votes = 0;
+
+  for (auto program : agent.GetGenome()){
+    sgp_eval_hw->SetProgram(program);
+    ResetHardware();
+    // Run agent until time is up or until agent indicates it is done evaluating.
+    for (eval_time = 0; eval_time < EVAL_TIME && !(bool)sgp_eval_hw->GetTrait(TRAIT_ID__DONE); ++eval_time)
+    {
+      sgp_eval_hw->SingleProcess();
+    }
+    othello_idx_t move = GetOthelloIndex((size_t)sgp_eval_hw->GetTrait(TRAIT_ID__MOVE));
+    if (move.pos != 0 && move.pos != 64) std::cout<<agent.agent_id<<" Agent Vote: "<<move.pos<<std::endl;
+    if (move.pos == OTHELLO_BOARD_NUM_CELLS) continue;
+    votes[move.pos] += 1;
+
+    if (votes[move.pos] > most_votes)
+    {
+      move_choices.clear();
+      move_choices.push_back(move.pos);
+      most_votes = votes[move.pos];
+    }
+    else if (votes[move.pos] == most_votes) move_choices.push_back(move.pos);
+  }
+  size_t move_count = move_choices.size();
+  return move_count ? GetOthelloIndex(move_choices[random->GetUInt(0, move_count)]) : GetOthelloIndex(OTHELLO_BOARD_NUM_CELLS);
+}
+
 /// Evaluates an organism on a game of Othello.
 /// param: agent, the organism to be evaluated
 /// param: heuristic_func, the handwritten AI the organism will compete against
 /// returns: the score of the organism.
-double EnsembleExp::EvalGame(SignalGPAgent &agent, std::function<othello_idx_t(SignalGPAgent &)> &heuristic_func)
+double EnsembleExp::EvalGame(SignalGPAgent &agent, std::function<othello_idx_t()> &heuristic_func)
 {
   // Initialize othello game
   game_hw->Reset();
@@ -720,7 +836,7 @@ double EnsembleExp::EvalGame(SignalGPAgent &agent, std::function<othello_idx_t(S
   // Main game loop
   for(size_t round_num = 0; round_num < OTHELLO_MAX_ROUND_CNT; ++round_num)
   {
-    othello_idx_t move = (curr_player == 0) ? EvalMove(agent) : heuristic_func(agent);
+    othello_idx_t move = (curr_player == 0) ? EvalMove(agent) : heuristic_func();
     score = round_num;
 
     //If a invalid move is given, fitness becomes rounds completed w/o error
@@ -746,6 +862,55 @@ double EnsembleExp::EvalGame(SignalGPAgent &agent, std::function<othello_idx_t(S
   score = 2 * OTHELLO_MAX_ROUND_CNT + hero_score;
   if (hero_score > opp_score) {score += 2 * rounds_left;} // If you win, you get points for rounds left
 
+  return score;
+}
+
+/// Evaluates an organism on a game of Othello.
+/// param: agent, the organism to be evaluated
+/// param: heuristic_func, the handwritten AI the organism will compete against
+/// returns: the score of the organism.
+double EnsembleExp::EvalGameGroup(GroupSignalGPAgent &agent, std::function<othello_idx_t()> &heuristic_func)
+{
+  // Initialize othello game
+  game_hw->Reset();
+  double score = 0;
+  bool curr_player = random->GetInt(0, 2); //Choose start player, 0 is individual, 1 is heuristic
+  othello_dreamware->SetPlayerID((curr_player == 0) ? othello_t::DARK : othello_t::LIGHT);
+
+  // Main game loop
+  for (size_t round_num = 0; round_num < OTHELLO_MAX_ROUND_CNT; ++round_num)
+  {
+    othello_idx_t move = (curr_player == 0) ? EvalMoveGroup(agent) : heuristic_func();
+    //std::cout<<"curr_player: "<<curr_player<<" move: "<<move.pos<<" round: "<<round_num<<std::endl;
+    score = round_num;
+
+    //If a invalid move is given, fitness becomes rounds completed w/o error
+    if (!game_hw->IsValidMove(game_hw->GetCurPlayer(), move))
+    {
+      emp_assert(curr_player != 1); // Heuristic should not give an invalid move
+      return score;
+    }
+
+    bool go_again = game_hw->DoNextMove(move);
+    if (game_hw->IsOver())
+      break;
+    if (!go_again)
+      curr_player = !curr_player; //Change current player if you don't get another turn
+  }
+
+  // Setup for score calculation
+  int rounds_left = OTHELLO_MAX_ROUND_CNT - (score + 1);
+  double hero_score = game_hw->GetScore(game_hw->GetCurPlayer());
+  double opp_score = game_hw->GetScore(game_hw->GetOpponent(game_hw->GetCurPlayer()));
+  emp_assert(rounds_left >= 0);
+  emp_assert(game_hw->IsOver());
+
+  // Bonus for completing game, increased by performance in game. Max possible fitness is 235 per heuristic.
+  score = 2 * OTHELLO_MAX_ROUND_CNT + hero_score;
+  if (hero_score > opp_score)
+  {
+    score += 2 * rounds_left;
+  } // If you win, you get points for rounds left
   return score;
 }
 
@@ -812,6 +977,75 @@ void EnsembleExp::Selection()
     default:
       std::cout << "Unrecognized selection method! Exiting..." << std::endl;
       exit(-1);
+  }
+}
+
+/// Calculate fitness for all organisms in the population.
+void EnsembleExp::EvaluateGroup()
+{
+  double best_score = -32767;
+  best_agent_id = 0;
+
+  for (size_t id = 0; id < sgpg_world->GetSize(); ++id)
+  {
+    // Evaluate agent given by id.
+    GroupSignalGPAgent &our_hero = sgpg_world->GetOrg(id);
+    our_hero.SetID(id);
+    // Initialize fitness tracking object
+    Phenotype &phen = agent_phen_cache[id];
+    phen.aggregate_score = 0;
+    phen.illegal_move_total = 0;
+
+    for (size_t i = 0; i < heuristics.size(); ++i)
+    {
+      phen.heuristic_scores[i] = EvalGameGroup(our_hero, heuristics[i]);
+      //std::cout<<std::endl;
+      phen.aggregate_score += phen.heuristic_scores[i]; // Sum of scores is fitness of organism
+      if (phen.heuristic_scores[i] < OTHELLO_MAX_ROUND_CNT)
+      {
+        phen.illegal_move_total++;
+      }
+    }
+
+    // Write current fitness information to file
+    record_fit_sig.Trigger(id, phen.aggregate_score);
+    record_phen_sig.Trigger(id, phen.heuristic_scores);
+
+    if (phen.aggregate_score > best_score)
+    {
+      best_score = phen.aggregate_score;
+      best_agent_id = id;
+    }
+  }
+  std::cout << "Update: " << update << " Max score: " << best_score << std::endl;
+}
+
+/// Select organisms for next generation using given selection method.
+void EnsembleExp::SelectionGroup()
+{
+  emp::EliteSelect(*sgpg_world, ELITE_SELECT__ELITE_CNT, 1); // Always add best organism to next gen
+
+  switch (SELECTION_METHOD)
+  {
+  case SELECTION_METHOD_ID__TOURNAMENT:
+    emp::TournamentSelect(*sgpg_world, TOURNAMENT_SIZE, POP_SIZE - ELITE_SELECT__ELITE_CNT);
+    break;
+  case SELECTION_METHOD_ID__LEXICASE:
+  {
+    sgpg_lexicase_fit_set.resize(0);
+    for (size_t i = 0; i < heuristics.size(); ++i)
+    {
+      sgpg_lexicase_fit_set.push_back([i, this](GroupSignalGPAgent &agent) {
+        Phenotype &phen = agent_phen_cache[agent.GetID()];
+        return phen.heuristic_scores[i];
+      });
+    }
+    emp::LexicaseSelect(*sgpg_world, sgpg_lexicase_fit_set, POP_SIZE - ELITE_SELECT__ELITE_CNT);
+    break;
+  }
+  default:
+    std::cout << "Unrecognized selection method! Exiting..." << std::endl;
+    exit(-1);
   }
 }
 

@@ -39,6 +39,9 @@ constexpr size_t REPRESENTATION_ID__SIGNALGPGROUP = 1;
 constexpr size_t TRAIT_ID__MOVE = 0;
 constexpr size_t TRAIT_ID__DONE = 1;
 
+constexpr size_t INIT_RANDOM = 0;
+constexpr size_t INIT_ANCESTOR = 1;
+
 constexpr int AGENT_VIEW__ILLEGAL_ID = -1;
 constexpr int AGENT_VIEW__OPEN_ID = 0;
 constexpr int AGENT_VIEW__SELF_ID = 1;
@@ -146,6 +149,8 @@ protected:
   size_t EVAL_TIME;
   size_t REPRESENTATION;
   size_t GROUP_SIZE;
+  std::string ANCESTOR_FPATH;
+  size_t INIT_METHOD;
   // Selection Group parameters
   size_t SELECTION_METHOD;
   size_t ELITE_SELECT__ELITE_CNT;
@@ -193,8 +198,9 @@ protected:
 
   /// Fitness vectors
   emp::vector<Phenotype> agent_phen_cache;                                  ///< Cache for organims fitness.
-  emp::vector<std::function<othello_idx_t(SignalGPAgent &)>> heuristics;    ///< Heuristic functions for fitness evaluation.
+  emp::vector<std::function<othello_idx_t()>> heuristics;    ///< Heuristic functions for fitness evaluation.
   emp::vector<std::function<double(SignalGPAgent &)>> sgp_lexicase_fit_set; ///< Fit set for SGP lexicase selection.
+  emp::vector<std::function<double(GroupSignalGPAgent &)>> sgpg_lexicase_fit_set; ///< Fit set for SGP lexicase selection.
 
   // SignalGP-specifics.
   emp::Ptr<SGP__world_t> sgp_world;         ///< World for evolving SignalGP agents.
@@ -207,6 +213,9 @@ protected:
   emp::Signal<void(size_t pos, double)> record_fit_sig;               ///< Trigger signal before organism gives birth that records fitness.
   emp::Signal<void(size_t pos, const phenotype_t &)> record_phen_sig; ///< Trigger signal before organism gives birth that records phenotypic info.
   emp::Signal<void(void)> do_pop_init_sig;                            ///< Triggered during run setup. Defines way population is initialized.
+  emp::Signal<void(void)> do_evaluation_sig;                          ///< Triggered during run step. Should trigger population-wide agent evaluation.
+  emp::Signal<void(void)> do_selection_sig;                           ///< Triggered during run step. Should trigger selection (which includes selection, reproduction, and mutation).
+  emp::Signal<void(void)> do_world_update_sig;                        ///< Triggered during run step. Should trigger world->Update(), and whatever else should happen right before/after population turnover.
 
   /// Get othello board index given *any* position.
   /// If position can't be used to make an Othello::Index struct, clamp it so that it can (becomes 64 if invalid).
@@ -256,6 +265,8 @@ public:
     EVAL_TIME = config.EVAL_TIME();
     REPRESENTATION = config.REPRESENTATION();
     GROUP_SIZE = config.GROUP_SIZE();
+    ANCESTOR_FPATH = config.ANCESTOR_FPATH();
+    INIT_METHOD = config.INIT_METHOD();
     SELECTION_METHOD = config.SELECTION_METHOD();
     ELITE_SELECT__ELITE_CNT = config.ELITE_SELECT__ELITE_CNT();
     TOURNAMENT_SIZE = config.TOURNAMENT_SIZE();
@@ -378,13 +389,16 @@ public:
   void ResetHardware();
 
   // Functions to manage othello games
-  double EvalGame(SignalGPAgent &agent, std::function<othello_idx_t(SignalGPAgent &)> &heuristic_func);
+  double EvalGame(SignalGPAgent &agent, std::function<othello_idx_t()> &heuristic_func);
+  double EvalGameGroup(GroupSignalGPAgent &agent, std::function<othello_idx_t()> &heuristic_func);
   othello_idx_t EvalMove(SignalGPAgent &agent);
+  othello_idx_t EvalMoveGroup(GroupSignalGPAgent &agent);
 
   // Functions run in each step of evolution
   void Evaluate();
   void Selection();
-  void Update();
+  void EvaluateGroup();
+  void SelectionGroup();
 
   // Config functions. These do all of the hardware-specific experiment setup/configuration.
   void ConfigSGP();
@@ -403,7 +417,9 @@ public:
 
   // SignalGP utility functions.
   void SGP__InitPopulation_Random();
+  void SGP__InitPopulation_FromAncestorFile();
   void SGPG__InitPopulation_Random();
+  void SGPG__InitPopulation_FromAncestorFile();
   void SGP__ResetHW(const SGP__memory_t &main_in_mem = SGP__memory_t());
 
   // -- Declarations of SignalGP Instructions defined in Ensemble_Instructions.h --
