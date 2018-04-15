@@ -24,6 +24,7 @@ void EnsembleExp::ConfigSGP() {
   // Setup fitness tracking.
   auto &fit_file = sgp_world->SetupFitnessFile(DATA_DIRECTORY + "fitness.csv");
   fit_file.SetTimingRepeat(FITNESS_INTERVAL);
+  AddBestPhenotypeFile(*sgp_world, DATA_DIRECTORY+"best_phenotype.csv").SetTimingRepeat(FITNESS_INTERVAL);
   record_fit_sig.AddAction([this](size_t pos, double fitness) { sgp_world->GetGenotypeAt(pos)->GetData().RecordFitness(fitness); });
 
   // Setup phenotype tracking
@@ -76,6 +77,7 @@ void EnsembleExp::ConfigSGPG() {
   // Setup fitness tracking.
   auto &fit_file = sgpg_world->SetupFitnessFile(DATA_DIRECTORY + "fitness.csv");
   fit_file.SetTimingRepeat(FITNESS_INTERVAL);
+  AddBestPhenotypeFile(*sgpg_world, DATA_DIRECTORY + "best_phenotype.csv").SetTimingRepeat(FITNESS_INTERVAL);
   record_fit_sig.AddAction([this](size_t pos, double fitness) { sgpg_world->GetGenotypeAt(pos)->GetData().RecordFitness(fitness); });
 
   // Setup phenotype tracking
@@ -720,7 +722,7 @@ void EnsembleExp::SGPG__InitPopulation_FromAncestorFile()
     exit(-1);
   }
 
-  for (int i = 0; i < GROUP_SIZE; ++i)
+  for (size_t i = 0; i < GROUP_SIZE; ++i)
   {
     std::string genome_txt;
     SGP__program_t ancestor_prog(sgp_inst_lib);
@@ -820,10 +822,10 @@ void EnsembleExp::ConfigHeuristics()
   };
 
   heuristics.push_back(random_player);
-  // heuristics.push_back(greedy_player);
-  // heuristics.push_back(corner_player);
-  // heuristics.push_back(frontier_player);
-  // heuristics.push_back(defense_player);
+  heuristics.push_back(greedy_player);
+  heuristics.push_back(corner_player);
+  heuristics.push_back(frontier_player);
+  heuristics.push_back(defense_player);
 
 }
 

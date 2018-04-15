@@ -383,6 +383,50 @@ public:
     return agent_phen_cache[agent.GetID()].aggregate_score;
   }
 
+  template <typename WORLD_TYPE>
+  emp::DataFile &AddBestPhenotypeFile(WORLD_TYPE &world, const std::string &fpath = "best_phenotype.csv")
+  {
+    auto &file = world.SetupFile(fpath);
+
+    std::function<size_t(void)> get_update = [&world]() { return world.GetUpdate(); };
+    file.AddFun(get_update, "update", "Update");
+
+    // NOTE: when this gets called, world->GetOrg(best_agent_id) is no longer accurate.
+    //       But... agent_phen_cache is still good to go.
+    std::function<double(void)> get_g1_score = [&world, this]() {
+      Phenotype &best_phen = this->agent_phen_cache[this->best_agent_id];
+      return best_phen.heuristic_scores[0];
+    };
+    file.AddFun(get_g1_score, "Random", "get best phenotype score from this update");
+
+    std::function<double(void)> get_g2_score = [&world, this]() {
+      Phenotype &best_phen = this->agent_phen_cache[this->best_agent_id];
+      return best_phen.heuristic_scores[1];
+    };
+    file.AddFun(get_g2_score, "Greedy", "get best phenotype score from this update");
+
+    std::function<double(void)> get_g3_score = [&world, this]() {
+      Phenotype &best_phen = this->agent_phen_cache[this->best_agent_id];
+      return best_phen.heuristic_scores[2];
+      ;
+    };
+    file.AddFun(get_g3_score, "Corner", "get best phenotype score from this update");
+
+    std::function<double(void)> get_g4_score = [&world, this]() {
+      Phenotype &best_phen = this->agent_phen_cache[this->best_agent_id];
+      return best_phen.heuristic_scores[3];
+    };
+    file.AddFun(get_g4_score, "Frontier", "get best phenotype score from this update");
+
+    std::function<double(void)> get_g5_score = [&world, this]() {
+      Phenotype &best_phen = this->agent_phen_cache[this->best_agent_id];
+      return best_phen.heuristic_scores[4];
+    };
+    file.AddFun(get_g5_score, "Defense", "get best phenotype score from this update");
+    file.PrintHeaderKeys();
+    return file;
+  }
+
   // -- Declaration of methods defined in ensemble_func.h --
   void Run();
   void RunStep();
