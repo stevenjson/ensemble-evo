@@ -30,6 +30,9 @@ void EnsembleExp::ConfigSGP() {
   //TODO: AddBestPhenotypeFile(*sgp_world, DATA_DIRECTORY + "best_phenotype.csv").SetTimingRepeat(SYSTEMATICS_INTERVAL);
   record_phen_sig.AddAction([this](size_t pos, const phenotype_t &phen) { sgp_world->GetGenotypeAt(pos)->GetData().RecordPhenotype(phen); });
 
+  // do_pop_snapshot
+  do_pop_snapshot_sig.AddAction([this](size_t update) { this->SGP_Snapshot_SingleFile(update); });
+
   // Generate the initial population.
   switch (INIT_METHOD)
   {
@@ -79,6 +82,9 @@ void EnsembleExp::ConfigSGPG() {
   //TODO: AddBestPhenotypeFile(*sgpg_world, DATA_DIRECTORY + "best_phenotype.csv").SetTimingRepeat(SYSTEMATICS_INTERVAL);
   record_phen_sig.AddAction([this](size_t pos, const phenotype_t &phen) { sgpg_world->GetGenotypeAt(pos)->GetData().RecordPhenotype(phen); });
 
+  // do_pop_snapshot
+  do_pop_snapshot_sig.AddAction([this](size_t update) { this->SGPG_Snapshot_SingleFile(update); });
+
   // Generate the initial population.
   switch (INIT_METHOD)
   {
@@ -124,6 +130,27 @@ void EnsembleExp::SGP_Snapshot_SingleFile(size_t update)
       prog_ofstream << "$\n";
     SignalGPAgent &agent = sgp_world->GetOrg(i);
     agent.program.PrintProgramFull(prog_ofstream);
+  }
+  prog_ofstream.close();
+}
+
+/// Write genomes of entire population to a file at the given update.
+/// param: update, the current update the population is being writen from.
+void EnsembleExp::SGPG_Snapshot_SingleFile(size_t update)
+{
+  std::string snapshot_dir = DATA_DIRECTORY + "pop_" + emp::to_string((int)update);
+  mkdir(snapshot_dir.c_str(), ACCESSPERMS);
+  // For each program in the population, dump the full program description in a single file.
+  std::ofstream prog_ofstream(snapshot_dir + "/pop_" + emp::to_string((int)update) + ".pop");
+  for (size_t i = 0; i < sgpg_world->GetSize(); ++i)
+  {
+    if (i)
+      prog_ofstream << "$\n";
+    GroupSignalGPAgent &agent = sgpg_world->GetOrg(i);
+    for (auto program : agent.programs)
+    {
+      program.PrintProgramFull(prog_ofstream);
+    }
   }
   prog_ofstream.close();
 }
@@ -429,7 +456,7 @@ size_t EnsembleExp::SGPG__Mutate_VariableLength(GroupSignalGPAgent &agent, emp::
   emp::vector<SGP__program_t> &programs = agent.GetGenome();
   size_t mut_cnt = 0;
 
-  for (auto program : programs){
+  for (SGP__program_t &program : programs){
     size_t expected_prog_len = program.GetInstCnt();
 
     // Duplicate a (single) function?
@@ -721,7 +748,7 @@ void EnsembleExp::ConfigHeuristics()
     return options[random->GetUInt(0, options.size())];
   };
 
-  std::function<othello_idx_t(SignalGPAgent &)> greedy_player = [this](SignalGPAgent &agent) {
+  std::function<othello_idx_t()> greedy_player = [this]() {
 	  emp::vector<othello_idx_t> options = game_hw->GetMoveOptions();
 	  // returns move that flips the most pieces
 	  size_t max_flips = 0;
@@ -737,7 +764,7 @@ void EnsembleExp::ConfigHeuristics()
   };
 
   // not really tested...
-  std::function<othello_idx_t(SignalGPAgent &)> corner_player = [this](SignalGPAgent &agent) {
+  std::function<othello_idx_t()> corner_player = [this]() {
 	  emp::vector<othello_idx_t> options = game_hw->GetMoveOptions();
 	  othello_idx_t id0((size_t)0);
 	  if (game_hw->IsValidMove(game_hw->GetCurPlayer(), id0)){
@@ -758,7 +785,7 @@ void EnsembleExp::ConfigHeuristics()
 	  return options[random->GetUInt(0, options.size())];
   };
 
-  std::function<othello_idx_t(SignalGPAgent &)> frontier_player = [this](SignalGPAgent &agent) {
+  std::function<othello_idx_t()> frontier_player = [this]() {
 	  emp::vector<othello_idx_t> options = game_hw->GetMoveOptions();
 	  size_t min_frontier = 64;
 	  othello_idx_t min_move;
@@ -775,7 +802,7 @@ void EnsembleExp::ConfigHeuristics()
 	  return min_move;
   };
   
-  std::function<othello_idx_t(SignalGPAgent &)> defense_player = [this](SignalGPAgent &agent) {
+  std::function<othello_idx_t()> defense_player = [this]() {
 	  emp::vector<othello_idx_t> options = game_hw->GetMoveOptions();
 	  size_t min_moves = 64;
 	  othello_idx_t min_move;
@@ -793,10 +820,10 @@ void EnsembleExp::ConfigHeuristics()
   };
 
   heuristics.push_back(random_player);
-  heuristics.push_back(greedy_player);
-  heuristics.push_back(corner_player);
-  heuristics.push_back(frontier_player);
-  heuristics.push_back(defense_player);
+  // heuristics.push_back(greedy_player);
+  // heuristics.push_back(corner_player);
+  // heuristics.push_back(frontier_player);
+  // heuristics.push_back(defense_player);
 
 }
 
@@ -876,8 +903,9 @@ EnsembleExp::othello_idx_t EnsembleExp::EvalMoveGroup(GroupSignalGPAgent &agent)
       sgp_eval_hw->SingleProcess();
     }
     othello_idx_t move = GetOthelloIndex((size_t)sgp_eval_hw->GetTrait(TRAIT_ID__MOVE));
-    if (move.pos != 0 && move.pos != 64) std::cout<<agent.agent_id<<" Agent Vote: "<<move.pos<<std::endl;
+    //if (move.pos != 0 && move.pos != 64) std::cout<<agent.agent_id<<" Agent Vote: "<<move.pos<<std::endl;
     if (move.pos == OTHELLO_BOARD_NUM_CELLS) continue;
+    if (!game_hw->IsValidMove(game_hw->GetCurPlayer(), move)) continue;
     votes[move.pos] += 1;
 
     if (votes[move.pos] > most_votes)
@@ -1070,14 +1098,14 @@ void EnsembleExp::EvaluateGroup()
     for (size_t i = 0; i < heuristics.size(); ++i)
     {
       phen.heuristic_scores[i] = EvalGameGroup(our_hero, heuristics[i]);
-      //std::cout<<std::endl;
+      //std::cout << std::endl;
       phen.aggregate_score += phen.heuristic_scores[i]; // Sum of scores is fitness of organism
       if (phen.heuristic_scores[i] < OTHELLO_MAX_ROUND_CNT)
       {
         phen.illegal_move_total++;
       }
     }
-
+    //std::cout<<"AGG SCORE: "<<phen.aggregate_score<<std::endl<<std::endl;
     // Write current fitness information to file
     record_fit_sig.Trigger(id, phen.aggregate_score);
     record_phen_sig.Trigger(id, phen.heuristic_scores);

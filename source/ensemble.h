@@ -316,10 +316,10 @@ public:
     othello_dreamware = emp::NewPtr<OthelloHardware>(1);
 
     // Configure game evaluation hardware.
-	game_hw = emp::NewPtr<othello_t>();
+    game_hw = emp::NewPtr<othello_t>();
 
-	//
-	test_hw = emp::NewPtr<othello_t>();
+    //
+    test_hw = emp::NewPtr<othello_t>();
 
     // Make the worlds
     sgp_world = emp::NewPtr<SGP__world_t>(random, "SGP-Ensemble-World");
@@ -339,9 +339,6 @@ public:
     sgp_eval_hw->SetMinBindThresh(SGP_HW_MIN_BIND_THRESH);
     sgp_eval_hw->SetMaxCores(SGP_HW_MAX_CORES);
     sgp_eval_hw->SetMaxCallDepth(SGP_HW_MAX_CALL_DEPTH);
-
-    // do_pop_snapshot
-    do_pop_snapshot_sig.AddAction([this](size_t update) { this->SGP_Snapshot_SingleFile(update); });
 
     switch (REPRESENTATION) 
     {
@@ -371,8 +368,8 @@ public:
     sgp_inst_lib.Delete();
     sgp_event_lib.Delete();
     sgp_eval_hw.Delete();
-	game_hw.Delete();
-	test_hw.Delete();
+	  game_hw.Delete();
+	  test_hw.Delete();
   }
 
   /// Fitness function for cached fitness
@@ -419,6 +416,7 @@ public:
 
   // Population snapshot functions
   void SGP_Snapshot_SingleFile(size_t update);
+  void SGPG_Snapshot_SingleFile(size_t update);
 
   // SignalGP utility functions.
   void SGP__InitPopulation_Random();
