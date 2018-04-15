@@ -189,6 +189,7 @@ protected:
   emp::Ptr<OthelloHardware> othello_dreamware;  ///< Othello game board dreamware!
   emp::Ptr<SGP__hardware_t> sgp_eval_hw;        ///< Hardware used to evaluate SignalGP programs during evolution/analysis.
   emp::Ptr<othello_t> game_hw;                  ///< Hardware used to evaluate games during fitness calculation
+  emp::Ptr<othello_t> test_hw;
 
   // Expirement variables
   size_t update;                ///< Current update/generation.
@@ -315,7 +316,10 @@ public:
     othello_dreamware = emp::NewPtr<OthelloHardware>(1);
 
     // Configure game evaluation hardware.
-    game_hw = emp::NewPtr<othello_t>();
+	game_hw = emp::NewPtr<othello_t>();
+
+	//
+	test_hw = emp::NewPtr<othello_t>();
 
     // Make the worlds
     sgp_world = emp::NewPtr<SGP__world_t>(random, "SGP-Ensemble-World");
@@ -367,7 +371,8 @@ public:
     sgp_inst_lib.Delete();
     sgp_event_lib.Delete();
     sgp_eval_hw.Delete();
-    game_hw.Delete();
+	game_hw.Delete();
+	test_hw.Delete();
   }
 
   /// Fitness function for cached fitness

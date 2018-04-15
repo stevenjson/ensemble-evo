@@ -721,11 +721,82 @@ void EnsembleExp::ConfigHeuristics()
     return options[random->GetUInt(0, options.size())];
   };
 
-  // TODO Add the rest of the heuristic functions here
+  std::function<othello_idx_t(SignalGPAgent &)> greedy_player = [this](SignalGPAgent &agent) {
+	  emp::vector<othello_idx_t> options = game_hw->GetMoveOptions();
+	  // returns move that flips the most pieces
+	  size_t max_flips = 0;
+	  othello_idx_t max_move;
+	  for (auto move : options){
+		  size_t flips = game_hw->GetFlipCount(game_hw->GetCurPlayer(), move);
+		  if (flips > max_flips){
+			  max_flips = flips;
+			  max_move = move;
+		  }
+	  }
+	  return max_move;
+  };
+
+  // not really tested...
+  std::function<othello_idx_t(SignalGPAgent &)> corner_player = [this](SignalGPAgent &agent) {
+	  emp::vector<othello_idx_t> options = game_hw->GetMoveOptions();
+	  othello_idx_t id0((size_t)0);
+	  if (game_hw->IsValidMove(game_hw->GetCurPlayer(), id0)){
+		  return id0;
+	  }
+	  othello_idx_t id7((size_t)7);
+	  if (game_hw->IsValidMove(game_hw->GetCurPlayer(), id7)){
+		  return id7;
+	  }
+	  othello_idx_t id56((size_t)56);
+	  if (game_hw->IsValidMove(game_hw->GetCurPlayer(), id56)){
+		  return id56;
+	  }
+	  othello_idx_t id63((size_t)63);
+	  if (game_hw->IsValidMove(game_hw->GetCurPlayer(), id63)){
+		  return id63;
+	  }
+	  return options[random->GetUInt(0, options.size())];
+  };
+
+  std::function<othello_idx_t(SignalGPAgent &)> frontier_player = [this](SignalGPAgent &agent) {
+	  emp::vector<othello_idx_t> options = game_hw->GetMoveOptions();
+	  size_t min_frontier = 64;
+	  othello_idx_t min_move;
+	  // find move to minimize own frontier
+	  for (auto move : options){
+		  test_hw->SetBoard(game_hw->GetBoard());
+		  test_hw->DoMove(game_hw->GetCurPlayer(), move);
+		  size_t frontier = test_hw->CountFrontierPos(game_hw->GetCurPlayer());                                                                                          
+		  if (frontier < min_frontier){
+			  min_frontier = frontier;
+			  min_move = move;
+		  }
+	  }
+	  return min_move;
+  };
+  
+  std::function<othello_idx_t(SignalGPAgent &)> defense_player = [this](SignalGPAgent &agent) {
+	  emp::vector<othello_idx_t> options = game_hw->GetMoveOptions();
+	  size_t min_moves = 64;
+	  othello_idx_t min_move;
+	  // minimize moves opponent can make                                                                                                                                                                                                                                                                                                                               pponent can make
+	  for (auto move : options){
+		  test_hw->SetBoard(game_hw->GetBoard());
+		  test_hw->DoMove(game_hw->GetCurPlayer(), move);
+		  emp::vector<othello_idx_t> op_options = test_hw->GetMoveOptions(game_hw->GetOpponent(game_hw->GetCurPlayer()));
+		  if (op_options.size() < min_moves){
+			  min_moves = op_options.size();
+			  min_move = move;
+		  }
+	  }
+	  return min_move;
+  };
 
   heuristics.push_back(random_player);
-
-  // TODO Put other heuristic functions in vector
+  heuristics.push_back(greedy_player);
+  heuristics.push_back(corner_player);
+  heuristics.push_back(frontier_player);
+  heuristics.push_back(defense_player);
 
 }
 
