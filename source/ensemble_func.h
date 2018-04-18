@@ -932,6 +932,7 @@ double EnsembleExp::EvalGame(SignalGPAgent &agent, std::function<othello_idx_t()
   game_hw->Reset();
   double score = 0;
   bool curr_player = random->GetInt(0,2); //Choose start player, 0 is individual, 1 is heuristic
+  bool start_player = curr_player;
   othello_dreamware->SetPlayerID( (curr_player == 0) ? othello_t::DARK : othello_t::LIGHT);
 
   // Main game loop
@@ -954,8 +955,8 @@ double EnsembleExp::EvalGame(SignalGPAgent &agent, std::function<othello_idx_t()
 
   // Setup for score calculation
   int rounds_left = OTHELLO_MAX_ROUND_CNT - (score + 1);
-  double hero_score = game_hw->GetScore((curr_player == 0) ? game_hw->GetCurPlayer() : game_hw->GetOpponent(game_hw->GetCurPlayer()));
-  double opp_score = game_hw->GetScore((curr_player == 1) ? game_hw->GetCurPlayer() : game_hw->GetOpponent(game_hw->GetCurPlayer()));
+  double hero_score = game_hw->GetScore((start_player == 0) ? dark : light);
+  double opp_score = game_hw->GetScore((start_player == 1) ? dark : light);
   emp_assert(rounds_left >= 0);
   emp_assert(game_hw->IsOver());
 
@@ -976,6 +977,7 @@ double EnsembleExp::EvalGameGroup(GroupSignalGPAgent &agent, std::function<othel
   game_hw->Reset();
   double score = 0;
   bool curr_player = random->GetInt(0, 2); //Choose start player, 0 is individual, 1 is heuristic
+  bool start_player = curr_player;
   othello_dreamware->SetPlayerID((curr_player == 0) ? othello_t::DARK : othello_t::LIGHT);
 
   // Main game loop
@@ -1001,8 +1003,8 @@ double EnsembleExp::EvalGameGroup(GroupSignalGPAgent &agent, std::function<othel
 
   // Setup for score calculation
   int rounds_left = OTHELLO_MAX_ROUND_CNT - (score + 1);
-  double hero_score = game_hw->GetScore((curr_player == 0) ? game_hw->GetCurPlayer() : game_hw->GetOpponent(game_hw->GetCurPlayer()));
-  double opp_score = game_hw->GetScore((curr_player == 1) ? game_hw->GetCurPlayer() : game_hw->GetOpponent(game_hw->GetCurPlayer()));
+  double hero_score = game_hw->GetScore((start_player == 0) ? dark : light);
+  double opp_score = game_hw->GetScore((start_player == 1) ? dark : light);
   emp_assert(rounds_left >= 0);
   emp_assert(game_hw->IsOver());
 
@@ -1260,8 +1262,8 @@ void EnsembleExp::Compete()
     if (!go_again)
       curr_player = !curr_player; //Change current player if you don't get another turn
   }
-  double hero_score = game_hw->GetScore((curr_player == 0) ? game_hw->GetCurPlayer() : game_hw->GetOpponent(game_hw->GetCurPlayer()));
-  double opp_score = game_hw->GetScore((curr_player == 1) ? game_hw->GetCurPlayer() : game_hw->GetOpponent(game_hw->GetCurPlayer()));
+  double hero_score = game_hw->GetScore((start_player == 0) ? dark : light);
+  double opp_score = game_hw->GetScore((start_player == 1) ? dark : light);
 
   std::cout<<"P1_Score: "<<hero_score<<" P2_Score: "<<opp_score<<" Invalid: "<<invalid<< " Last_Player: "<<double(curr_player)<<std::endl;
 }

@@ -188,7 +188,10 @@ protected:
   std::string DATA_DIRECTORY;
 
   emp::Ptr<emp::Random> random;
-  
+
+  emp::Othello8::Player dark = emp::Othello8::Player::DARK;
+  emp::Othello8::Player light = emp::Othello8::Player::LIGHT;
+
   // Expirement hardware
   emp::Ptr<OthelloHardware> othello_dreamware;  ///< Othello game board dreamware!
   emp::Ptr<SGP__hardware_t> sgp_eval_hw;        ///< Hardware used to evaluate SignalGP programs during evolution/analysis.
