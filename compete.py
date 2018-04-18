@@ -56,7 +56,7 @@ if __name__ == '__main__':
             p1 = gp_path + path_1 + "/" + file_1
             p2 = gp_path + path_2 + "/" + file_2
             print(p1, p2)
-            cmd = './ensemble -COMPETE 1 -COMPETE_TYPE {} -COMPETE_FPATH_1 {} -COMPETE_FPATH_2 {}'.format(compete_type,p1, p2)
+            cmd = './ensemble -RANDOM_SEED 1 -COMPETE 1 -COMPETE_TYPE {} -COMPETE_FPATH_1 {} -COMPETE_FPATH_2 {}'.format(compete_type,p1, p2)
             cmd = cmd.split()
             p = Popen(cmd, stdout=PIPE, stderr=PIPE)
             stdout, stderr = p.communicate(input=str)
