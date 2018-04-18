@@ -31,5 +31,6 @@ int main(int argc, char* argv[])
             << std::endl;
 
   EnsembleExp e(config);
-  e.Run();
+  if (config.COMPETE() == 0) e.Run();
+  else e.Compete();
 }

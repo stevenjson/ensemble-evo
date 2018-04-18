@@ -151,6 +151,10 @@ protected:
   size_t GROUP_SIZE;
   std::string ANCESTOR_FPATH;
   size_t INIT_METHOD;
+  // Parameters when competing programs
+  size_t COMPETE_TYPE;
+  std::string COMPETE_FPATH_1;
+  std::string COMPETE_FPATH_2;
   // Selection Group parameters
   size_t SELECTION_METHOD;
   size_t ELITE_SELECT__ELITE_CNT;
@@ -268,6 +272,9 @@ public:
     GROUP_SIZE = config.GROUP_SIZE();
     ANCESTOR_FPATH = config.ANCESTOR_FPATH();
     INIT_METHOD = config.INIT_METHOD();
+    COMPETE_TYPE = config.COMPETE_TYPE();
+    COMPETE_FPATH_1 = config.COMPETE_FPATH_1();
+    COMPETE_FPATH_2 = config.COMPETE_FPATH_2();
     SELECTION_METHOD = config.SELECTION_METHOD();
     ELITE_SELECT__ELITE_CNT = config.ELITE_SELECT__ELITE_CNT();
     TOURNAMENT_SIZE = config.TOURNAMENT_SIZE();
@@ -439,6 +446,9 @@ public:
   double EvalGameGroup(GroupSignalGPAgent &agent, std::function<othello_idx_t()> &heuristic_func);
   othello_idx_t EvalMove(SignalGPAgent &agent);
   othello_idx_t EvalMoveGroup(GroupSignalGPAgent &agent);
+  void Compete();
+  emp::vector<SGP__program_t> LoadGroupCompete(std::string path);
+  SGP__program_t LoadIndividualCompete(std::string path);
 
   // Functions run in each step of evolution
   void Evaluate();

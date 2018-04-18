@@ -146,12 +146,11 @@ void EnsembleExp::SGPG_Snapshot_SingleFile(size_t update)
   std::ofstream prog_ofstream(snapshot_dir + "/pop_" + emp::to_string((int)update) + ".pop");
   for (size_t i = 0; i < sgpg_world->GetSize(); ++i)
   {
-    if (i)
-      prog_ofstream << "$\n";
     GroupSignalGPAgent &agent = sgpg_world->GetOrg(i);
     for (auto program : agent.programs)
     {
       program.PrintProgramFull(prog_ofstream);
+      prog_ofstream << "$\n";
     }
   }
   prog_ofstream.close();
@@ -877,6 +876,7 @@ void EnsembleExp::ResetHardware()
 /// returns: the given agent's move
 EnsembleExp::othello_idx_t EnsembleExp::EvalMove(SignalGPAgent &agent)
 {
+  sgp_eval_hw->SetProgram(agent.GetGenome());
   ResetHardware();
   // Run agent until time is up or until agent indicates it is done evaluating.
   for (eval_time = 0; eval_time < EVAL_TIME && !(bool)sgp_eval_hw->GetTrait(TRAIT_ID__DONE); ++eval_time)
@@ -954,8 +954,8 @@ double EnsembleExp::EvalGame(SignalGPAgent &agent, std::function<othello_idx_t()
 
   // Setup for score calculation
   int rounds_left = OTHELLO_MAX_ROUND_CNT - (score + 1);
-  double hero_score = game_hw->GetScore(game_hw->GetCurPlayer());
-  double opp_score = game_hw->GetScore(game_hw->GetOpponent(game_hw->GetCurPlayer()));
+  double hero_score = game_hw->GetScore((curr_player == 0) ? game_hw->GetCurPlayer() : game_hw->GetOpponent(game_hw->GetCurPlayer()));
+  double opp_score = game_hw->GetScore((curr_player == 1) ? game_hw->GetCurPlayer() : game_hw->GetOpponent(game_hw->GetCurPlayer()));
   emp_assert(rounds_left >= 0);
   emp_assert(game_hw->IsOver());
 
@@ -1001,8 +1001,8 @@ double EnsembleExp::EvalGameGroup(GroupSignalGPAgent &agent, std::function<othel
 
   // Setup for score calculation
   int rounds_left = OTHELLO_MAX_ROUND_CNT - (score + 1);
-  double hero_score = game_hw->GetScore(game_hw->GetCurPlayer());
-  double opp_score = game_hw->GetScore(game_hw->GetOpponent(game_hw->GetCurPlayer()));
+  double hero_score = game_hw->GetScore((curr_player == 0) ? game_hw->GetCurPlayer() : game_hw->GetOpponent(game_hw->GetCurPlayer()));
+  double opp_score = game_hw->GetScore((curr_player == 1) ? game_hw->GetCurPlayer() : game_hw->GetOpponent(game_hw->GetCurPlayer()));
   emp_assert(rounds_left >= 0);
   emp_assert(game_hw->IsOver());
 
@@ -1026,7 +1026,6 @@ void EnsembleExp::Evaluate()
     // Evaluate agent given by id.
     SignalGPAgent &our_hero = sgp_world->GetOrg(id);
     our_hero.SetID(id);
-    sgp_eval_hw->SetProgram(our_hero.GetGenome());
     // Initialize fitness tracking object
     Phenotype &phen = agent_phen_cache[id];
     phen.aggregate_score = 0;
@@ -1148,6 +1147,123 @@ void EnsembleExp::SelectionGroup()
     std::cout << "Unrecognized selection method! Exiting..." << std::endl;
     exit(-1);
   }
+}
+
+emp::vector<EnsembleExp::SGP__program_t> EnsembleExp::LoadGroupCompete(std::string path)
+{
+  // Configure the ancestor program.
+  emp::vector<SGP__program_t> ancestor_programs;
+
+  std::ifstream ancestor_fstream(path);
+  if (!ancestor_fstream.is_open())
+  {
+    std::cout << "Failed to open ancestor program file(" << path << "). Exiting..." << std::endl;
+    exit(-1);
+  }
+
+  for (size_t i = 0; i < GROUP_SIZE; ++i)
+  {
+    std::string genome_txt;
+    SGP__program_t ancestor_prog(sgp_inst_lib);
+    emp_assert(!ancestor_fstream == false);
+
+    std::getline(ancestor_fstream, genome_txt, '$');
+    std::stringstream ss(genome_txt);
+    ancestor_prog.Load(ss);
+    ancestor_programs.push_back(ancestor_prog);
+  }
+  return ancestor_programs;
+}
+
+EnsembleExp::SGP__program_t EnsembleExp::LoadIndividualCompete(std::string path)
+{
+  // Configure the ancestor program.
+  SGP__program_t ancestor_prog(sgp_inst_lib);
+  std::ifstream ancestor_fstream(path);
+  if (!ancestor_fstream.is_open())
+  {
+    std::cout << "Failed to open ancestor program file(" << path << "). Exiting..." << std::endl;
+    exit(-1);
+  }
+  ancestor_prog.Load(ancestor_fstream);
+  
+  return ancestor_prog;
+}
+
+void EnsembleExp::Compete()
+{
+  SGP__program_t sgp_agent_1(sgp_inst_lib);
+  SGP__program_t sgp_agent_2(sgp_inst_lib);
+  emp::vector <SGP__program_t> sgpg_agent_1;
+  emp::vector<SGP__program_t> sgpg_agent_2;
+
+  switch(COMPETE_TYPE)
+  {
+    case 0:
+      sgp_agent_1 = LoadIndividualCompete(COMPETE_FPATH_1);
+      sgp_agent_2 = LoadIndividualCompete(COMPETE_FPATH_2);
+      break;
+
+    case 1:
+      sgp_agent_1 = LoadIndividualCompete(COMPETE_FPATH_1);
+      sgpg_agent_1 = LoadGroupCompete(COMPETE_FPATH_2);
+      break;
+    
+    case 2:
+      sgpg_agent_1 = LoadGroupCompete(COMPETE_FPATH_1);
+      sgpg_agent_2 = LoadGroupCompete(COMPETE_FPATH_2);
+  }
+
+  SignalGPAgent sgp_player_1 = SignalGPAgent(sgp_agent_1);
+  SignalGPAgent sgp_player_2 = SignalGPAgent(sgp_agent_2);
+  GroupSignalGPAgent sgpg_player_1 = GroupSignalGPAgent(sgpg_agent_1);
+  GroupSignalGPAgent sgpg_player_2 = GroupSignalGPAgent(sgpg_agent_2);
+
+  // Initialize othello game
+  game_hw->Reset();
+  size_t p1_wins = 0;
+  size_t p2_wins = 0;
+  bool invalid = false;
+  bool curr_player = random->GetInt(0, 2); //Choose start player
+  bool start_player = curr_player;
+
+  // Main game loop
+  for (size_t round_num = 0; round_num < OTHELLO_MAX_ROUND_CNT; ++round_num)
+  {
+    othello_dreamware->SetPlayerID((curr_player == start_player) ? othello_t::DARK : othello_t::LIGHT);
+    othello_idx_t move;
+
+    switch (COMPETE_TYPE)
+    {
+      case 0:
+        move = (curr_player == 0) ? EvalMove(sgp_player_1) : EvalMove(sgp_player_2);
+        break;
+      
+      case 1:
+        move = (curr_player == 0) ? EvalMove(sgp_player_1) : EvalMoveGroup(sgpg_player_1);
+
+      case 2:
+        move = (curr_player == 0) ? EvalMoveGroup(sgpg_player_1) : EvalMoveGroup(sgpg_player_2);
+    }
+
+    //If a invalid move is given, fitness becomes rounds completed w/o error
+    if (!game_hw->IsValidMove(game_hw->GetCurPlayer(), move))
+    {
+      (curr_player == 0) ? p2_wins++ : p1_wins++;
+      invalid = true;
+      break;
+    }
+
+    bool go_again = game_hw->DoNextMove(move);
+    if (game_hw->IsOver())
+      break;
+    if (!go_again)
+      curr_player = !curr_player; //Change current player if you don't get another turn
+  }
+  double hero_score = game_hw->GetScore((curr_player == 0) ? game_hw->GetCurPlayer() : game_hw->GetOpponent(game_hw->GetCurPlayer()));
+  double opp_score = game_hw->GetScore((curr_player == 1) ? game_hw->GetCurPlayer() : game_hw->GetOpponent(game_hw->GetCurPlayer()));
+
+  std::cout<<"P1_Score: "<<hero_score<<" P2_Score: "<<opp_score<<" Invalid: "<<invalid<< " Last_Player: "<<double(curr_player)<<std::endl;
 }
 
 #endif
