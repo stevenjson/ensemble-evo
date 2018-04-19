@@ -1214,6 +1214,7 @@ void EnsembleExp::Compete()
     case 2:
       sgpg_agent_1 = LoadGroupCompete(COMPETE_FPATH_1);
       sgpg_agent_2 = LoadGroupCompete(COMPETE_FPATH_2);
+      break;
   }
 
   SignalGPAgent sgp_player_1 = SignalGPAgent(sgp_agent_1);
@@ -1243,11 +1244,12 @@ void EnsembleExp::Compete()
       
       case 1:
         move = (curr_player == 0) ? EvalMove(sgp_player_1) : EvalMoveGroup(sgpg_player_1);
+        break;
 
       case 2:
         move = (curr_player == 0) ? EvalMoveGroup(sgpg_player_1) : EvalMoveGroup(sgpg_player_2);
+        break;
     }
-
     //If a invalid move is given, fitness becomes rounds completed w/o error
     if (!game_hw->IsValidMove(game_hw->GetCurPlayer(), move))
     {
@@ -1265,7 +1267,7 @@ void EnsembleExp::Compete()
   double hero_score = game_hw->GetScore((start_player == 0) ? dark : light);
   double opp_score = game_hw->GetScore((start_player == 1) ? dark : light);
 
-  std::cout<<"P1_Score: "<<hero_score<<" P2_Score: "<<opp_score<<" Invalid: "<<invalid<< " Last_Player: "<<double(curr_player)<<std::endl;
+  std::cout<<hero_score<<" "<<opp_score<<" "<<invalid<< " "<<curr_player<<std::endl;
 }
 
 #endif
