@@ -821,6 +821,7 @@ void EnsembleExp::ConfigHeuristics()
   };
 
   heuristics.push_back(random_player);
+  heuristics.push_back(random_player);
   heuristics.push_back(greedy_player);
   heuristics.push_back(corner_player);
   heuristics.push_back(frontier_player);
@@ -926,13 +927,12 @@ EnsembleExp::othello_idx_t EnsembleExp::EvalMoveGroup(GroupSignalGPAgent &agent)
 /// param: agent, the organism to be evaluated
 /// param: heuristic_func, the handwritten AI the organism will compete against
 /// returns: the score of the organism.
-double EnsembleExp::EvalGame(SignalGPAgent &agent, std::function<othello_idx_t()> &heuristic_func)
+double EnsembleExp::EvalGame(SignalGPAgent &agent, std::function<othello_idx_t()> &heuristic_func, bool start_player)
 {
   // Initialize othello game
   game_hw->Reset();
   double score = 0;
-  bool curr_player = random->GetInt(0,2); //Choose start player, 0 is individual, 1 is heuristic
-  bool start_player = curr_player;
+  bool curr_player = start_player; //random->GetInt(0,2); //Choose start player, 0 is individual, 1 is heuristic
   othello_dreamware->SetPlayerID( (curr_player == 0) ? othello_t::DARK : othello_t::LIGHT);
 
   // Main game loop
@@ -971,13 +971,12 @@ double EnsembleExp::EvalGame(SignalGPAgent &agent, std::function<othello_idx_t()
 /// param: agent, the organism to be evaluated
 /// param: heuristic_func, the handwritten AI the organism will compete against
 /// returns: the score of the organism.
-double EnsembleExp::EvalGameGroup(GroupSignalGPAgent &agent, std::function<othello_idx_t()> &heuristic_func)
+double EnsembleExp::EvalGameGroup(GroupSignalGPAgent &agent, std::function<othello_idx_t()> &heuristic_func, bool start_player)
 {
   // Initialize othello game
   game_hw->Reset();
   double score = 0;
-  bool curr_player = random->GetInt(0, 2); //Choose start player, 0 is individual, 1 is heuristic
-  bool start_player = curr_player;
+  bool curr_player = start_player; //random->GetInt(0, 2); //Choose start player, 0 is individual, 1 is heuristic
   othello_dreamware->SetPlayerID((curr_player == 0) ? othello_t::DARK : othello_t::LIGHT);
 
   // Main game loop
@@ -1035,7 +1034,10 @@ void EnsembleExp::Evaluate()
 
     for (size_t i = 0; i < heuristics.size(); ++i)
     {
-      phen.heuristic_scores[i] = EvalGame(our_hero, heuristics[i]);
+      bool start_player = random->GetInt(0, 2);
+      if (i == 0) start_player = 1;
+      else if (i == 1) start_player = 0;
+      phen.heuristic_scores[i] = EvalGame(our_hero, heuristics[i], start_player);
       phen.aggregate_score += phen.heuristic_scores[i]; // Sum of scores is fitness of organism
       if (phen.heuristic_scores[i] < OTHELLO_MAX_ROUND_CNT) {phen.illegal_move_total++;}
     }
@@ -1100,7 +1102,10 @@ void EnsembleExp::EvaluateGroup()
 
     for (size_t i = 0; i < heuristics.size(); ++i)
     {
-      phen.heuristic_scores[i] = EvalGameGroup(our_hero, heuristics[i]);
+      bool start_player = random->GetInt(0, 2);
+      if (i == 0) start_player = 1;
+      else if (i == 1) start_player = 0;
+      phen.heuristic_scores[i] = EvalGameGroup(our_hero, heuristics[i], start_player);
       //std::cout << std::endl;
       phen.aggregate_score += phen.heuristic_scores[i]; // Sum of scores is fitness of organism
       if (phen.heuristic_scores[i] < OTHELLO_MAX_ROUND_CNT)
@@ -1267,7 +1272,7 @@ void EnsembleExp::Compete()
   double hero_score = game_hw->GetScore((start_player == 0) ? dark : light);
   double opp_score = game_hw->GetScore((start_player == 1) ? dark : light);
 
-  std::cout<<hero_score<<" "<<opp_score<<" "<<invalid<< " "<<curr_player<<std::endl;
+  std::cout<<hero_score<<" "<<opp_score<<" "<<invalid<< " "<<curr_player<<" "<<start_player<<std::endl;
 }
 
 #endif

@@ -403,36 +403,42 @@ public:
 
     // NOTE: when this gets called, world->GetOrg(best_agent_id) is no longer accurate.
     //       But... agent_phen_cache is still good to go.
-    std::function<double(void)> get_g1_score = [&world, this]() {
+    std::function<double(void)> get_random_first_score = [&world, this]() {
       Phenotype &best_phen = this->agent_phen_cache[this->best_agent_id];
       return best_phen.heuristic_scores[0];
     };
-    file.AddFun(get_g1_score, "Random", "get best phenotype score from this update");
+    file.AddFun(get_random_first_score, "RandomFirst", "get best phenotype score from this update");
 
-    std::function<double(void)> get_g2_score = [&world, this]() {
+    std::function<double(void)> get_random_second_score = [&world, this]() {
       Phenotype &best_phen = this->agent_phen_cache[this->best_agent_id];
       return best_phen.heuristic_scores[1];
     };
-    file.AddFun(get_g2_score, "Greedy", "get best phenotype score from this update");
+    file.AddFun(get_random_second_score, "RandomSecond", "get best phenotype score from this update");
 
-    std::function<double(void)> get_g3_score = [&world, this]() {
+    std::function<double(void)> get_greedy_score = [&world, this]() {
       Phenotype &best_phen = this->agent_phen_cache[this->best_agent_id];
       return best_phen.heuristic_scores[2];
-      ;
     };
-    file.AddFun(get_g3_score, "Corner", "get best phenotype score from this update");
+    file.AddFun(get_greedy_score, "Greedy", "get best phenotype score from this update");
 
-    std::function<double(void)> get_g4_score = [&world, this]() {
+    std::function<double(void)> get_corner_score = [&world, this]() {
       Phenotype &best_phen = this->agent_phen_cache[this->best_agent_id];
       return best_phen.heuristic_scores[3];
+      ;
     };
-    file.AddFun(get_g4_score, "Frontier", "get best phenotype score from this update");
+    file.AddFun(get_corner_score, "Corner", "get best phenotype score from this update");
 
-    std::function<double(void)> get_g5_score = [&world, this]() {
+    std::function<double(void)> get_frontier_score = [&world, this]() {
       Phenotype &best_phen = this->agent_phen_cache[this->best_agent_id];
       return best_phen.heuristic_scores[4];
     };
-    file.AddFun(get_g5_score, "Defense", "get best phenotype score from this update");
+    file.AddFun(get_frontier_score, "Frontier", "get best phenotype score from this update");
+
+    std::function<double(void)> get_defense_score = [&world, this]() {
+      Phenotype &best_phen = this->agent_phen_cache[this->best_agent_id];
+      return best_phen.heuristic_scores[5];
+    };
+    file.AddFun(get_defense_score, "Defense", "get best phenotype score from this update");
     file.PrintHeaderKeys();
     return file;
   }
@@ -445,8 +451,8 @@ public:
   void ResetHardware();
 
   // Functions to manage othello games
-  double EvalGame(SignalGPAgent &agent, std::function<othello_idx_t()> &heuristic_func);
-  double EvalGameGroup(GroupSignalGPAgent &agent, std::function<othello_idx_t()> &heuristic_func);
+  double EvalGame(SignalGPAgent &agent, std::function<othello_idx_t()> &heuristic_func, bool start_player);
+  double EvalGameGroup(GroupSignalGPAgent &agent, std::function<othello_idx_t()> &heuristic_func, bool start_player);
   othello_idx_t EvalMove(SignalGPAgent &agent);
   othello_idx_t EvalMoveGroup(GroupSignalGPAgent &agent);
   void Compete();
