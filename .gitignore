@@ -5,7 +5,10 @@
 lineage
 ensemble
 fitness.csv
+best_phenotype.csv
 pop_*/
+programs/
+ancestor_*.gp
 
 # Compiled Object files
 *.slo
