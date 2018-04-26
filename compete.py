@@ -39,12 +39,13 @@ def CreateProgramFiles(pop_path, gp_path):
             out_file.close()
 
 if __name__ == '__main__':
-    compete_type = 1
-    path_1 = "REP0_S1_GEN2000"
-    path_2 = "REP1_S1_GEN2000"
+    compete_type = 0
+    path_1 = "REP0_S0_GEN2000"
+    path_2 = "REP0_S1_GEN2000"
     pop_path = '../Ensemble_Results/'
     gp_path = './programs/'
-    data = [0, 0, 0, 0, 0]
+    data = [0, 0, 0, 0, 0, 0]
+    seed = 1234
 
     CreateProgramFiles(pop_path, gp_path)   
     
@@ -57,13 +58,17 @@ if __name__ == '__main__':
         for file_2 in path_2_files:
             p1 = gp_path + path_1 + "/" + file_1
             p2 = gp_path + path_2 + "/" + file_2
-            cmd = './ensemble -RANDOM_SEED 123 -COMPETE 1 -COMPETE_TYPE {} -COMPETE_FPATH_1 {} -COMPETE_FPATH_2 {}'.format(compete_type,p1, p2)
+            cmd = './ensemble -RANDOM_SEED {} -COMPETE 1 -COMPETE_TYPE {} -COMPETE_FPATH_1 {} -COMPETE_FPATH_2 {}'.format(seed, compete_type, p1, p2)
+            seed += 1
             cmd = cmd.split()
             p = Popen(cmd, stdout=PIPE, stderr=PIPE)
             stdout, stderr = p.communicate(input=str)
             output = str(stdout).split('!')[1].replace("\\n'", "").replace("\\n", "")
             output = output.split(" ")
+            if int(output[2]) == 1:
+                print("Start Player:", output[4]," End Player:", output[3])
             count += 1
+            data[5] += int(output[4])
             if int(output[2]) == 1:
                 if int(output[3]) == 0: data[3] += 1
                 elif int(output[3]) == 1: data[4] += 1
@@ -78,4 +83,4 @@ if __name__ == '__main__':
                 print("ERROR")
                     
     print(path_1 + " Wins:",data[0], path_2 + " Wins:", data[1], " Ties:", data[2], end=" ")
-    print(path_1 + " Inv.:", data[3], path_2 + " Inv.:", data[4])
+    print(path_1 + " Inv.:", data[3], path_2 + " Inv.:", data[4], " P2 Went First:", data[5])
