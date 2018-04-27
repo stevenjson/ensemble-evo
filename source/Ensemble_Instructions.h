@@ -120,6 +120,12 @@ void EnsembleExp::ConfigSGP_InstLib() {
 }
 
 
+void EnsembleExp::ConfigCommunicationLib() {
+  std::cout<< "ERROR: Need to Configure Comm stuff still..."<<std::endl;
+  exit(-1);
+}
+
+
 // --- SGP instruction implementations ---
 // SGP__Inst_Fork
 void EnsembleExp::SGP__Inst_Fork(SGP__hardware_t & hw, const SGP__inst_t & inst) {

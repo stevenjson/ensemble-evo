@@ -118,6 +118,19 @@ void EnsembleExp::SGP__ResetHW(const SGP__memory_t &main_in_mem)
   sgp_eval_hw->SpawnCore(0, main_in_mem, true);
 }
 
+/// Reset the SignalGP evaluation hardware, setting input memory of
+/// main thread to be equal to main_in_mem.
+void EnsembleExp::SGPG__ResetHW(const SGP__memory_t &main_in_mem)
+{
+  for (auto hw : sgpg_eval_hw)
+  {
+    hw->ResetHardware();
+    hw->SetTrait(TRAIT_ID__MOVE, -1);
+    hw->SetTrait(TRAIT_ID__DONE, 0);
+    hw->SpawnCore(0, main_in_mem, true);
+  }
+}
+
 /// Write genomes of entire population to a file at the given update.
 /// param: update, the current update the population is being writen from.
 void EnsembleExp::SGP_Snapshot_SingleFile(size_t update)

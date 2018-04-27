@@ -35,6 +35,7 @@ constexpr size_t OTHELLO_BOARD_NUM_CELLS = OTHELLO_BOARD_WIDTH * OTHELLO_BOARD_W
 
 constexpr size_t REPRESENTATION_ID__SIGNALGP = 0;
 constexpr size_t REPRESENTATION_ID__SIGNALGPGROUP = 1;
+constexpr size_t REPRESENTATION_ID__SIGNALGPCOMM = 2;
 
 constexpr size_t TRAIT_ID__MOVE = 0;
 constexpr size_t TRAIT_ID__DONE = 1;
@@ -194,7 +195,9 @@ protected:
 
   // Expirement hardware
   emp::Ptr<OthelloHardware> othello_dreamware;  ///< Othello game board dreamware!
+  emp::vector<emp::Ptr<OthelloHardware>> all_dreamware;
   emp::Ptr<SGP__hardware_t> sgp_eval_hw;        ///< Hardware used to evaluate SignalGP programs during evolution/analysis.
+  emp::vector <emp::Ptr<SGP__hardware_t>> sgpg_eval_hw;
   emp::Ptr<othello_t> game_hw;                  ///< Hardware used to evaluate games during fitness calculation
   emp::Ptr<othello_t> test_hw;
 
@@ -320,10 +323,13 @@ public:
       agent_phen_cache[i].aggregate_score = 0;
     }
 
-    //TODO Cache group phenotype
-
     // Configure the dreamware!
     othello_dreamware = emp::NewPtr<OthelloHardware>(1);
+
+    for (size_t i = 0; i < GROUP_SIZE; ++i)
+    {
+      all_dreamware.push_back(emp::NewPtr<OthelloHardware>(1));
+    }
 
     // Configure game evaluation hardware.
     game_hw = emp::NewPtr<othello_t>();
@@ -343,12 +349,22 @@ public:
     mkdir(DATA_DIRECTORY.c_str(), ACCESSPERMS);
     if (DATA_DIRECTORY.back() != '/') DATA_DIRECTORY += '/';
 
-    ConfigSGP_InstLib();
-
     sgp_eval_hw = emp::NewPtr<SGP__hardware_t>(sgp_inst_lib, sgp_event_lib, random);
     sgp_eval_hw->SetMinBindThresh(SGP_HW_MIN_BIND_THRESH);
     sgp_eval_hw->SetMaxCores(SGP_HW_MAX_CORES);
     sgp_eval_hw->SetMaxCallDepth(SGP_HW_MAX_CALL_DEPTH);
+
+    for (size_t i = 0; i < GROUP_SIZE; ++i)
+    {
+      emp::Ptr<SGP__hardware_t> temp = emp::NewPtr<SGP__hardware_t>(sgp_inst_lib, sgp_event_lib, random);
+      temp->SetMinBindThresh(SGP_HW_MIN_BIND_THRESH);
+      temp->SetMaxCores(SGP_HW_MAX_CORES);
+      temp->SetMaxCallDepth(SGP_HW_MAX_CALL_DEPTH);
+
+      sgpg_eval_hw.push_back(temp);
+    }
+
+    ConfigSGP_InstLib();
 
     switch (REPRESENTATION) 
     {
@@ -360,6 +376,13 @@ public:
         emp_assert(POP_SIZE % GROUP_SIZE == 0);
         POP_SIZE = POP_SIZE / GROUP_SIZE;
         ConfigSGPG();
+        break;
+
+      case REPRESENTATION_ID__SIGNALGPCOMM:
+        emp_assert(POP_SIZE % GROUP_SIZE == 0);
+        POP_SIZE = POP_SIZE / GROUP_SIZE;
+        ConfigSGPG();
+        ConfigCommunicationLib();
         break;
 
       default:
@@ -380,6 +403,8 @@ public:
     sgp_eval_hw.Delete();
 	  game_hw.Delete();
 	  test_hw.Delete();
+    for (auto ptr : sgpg_eval_hw) {ptr.Delete();}
+    for (auto ptr : all_dreamware) {ptr.Delete();}
   }
 
   /// Fitness function for cached fitness
@@ -469,6 +494,7 @@ public:
   void ConfigSGP();
   void ConfigSGPG();
   void ConfigSGP_InstLib();
+  void ConfigCommunicationLib();
   void ConfigHeuristics();
 
   // Mutation functions
@@ -487,6 +513,7 @@ public:
   void SGPG__InitPopulation_Random();
   void SGPG__InitPopulation_FromAncestorFile();
   void SGP__ResetHW(const SGP__memory_t &main_in_mem = SGP__memory_t());
+  void SGPG__ResetHW(const SGP__memory_t &main_in_mem = SGP__memory_t());
 
   // -- Declarations of SignalGP Instructions defined in Ensemble_Instructions.h --
   // Fork
