@@ -324,8 +324,6 @@ public:
     }
 
     // Configure the dreamware!
-    othello_dreamware = emp::NewPtr<OthelloHardware>(1);
-
     for (size_t i = 0; i < GROUP_SIZE; ++i)
     {
       all_dreamware.push_back(emp::NewPtr<OthelloHardware>(1));
@@ -369,16 +367,19 @@ public:
     switch (REPRESENTATION) 
     {
       case REPRESENTATION_ID__SIGNALGP:
+        othello_dreamware = emp::NewPtr<OthelloHardware>(1);
         ConfigSGP();
         break;
 
       case REPRESENTATION_ID__SIGNALGPGROUP:
+        othello_dreamware = all_dreamware[0]; 
         emp_assert(POP_SIZE % GROUP_SIZE == 0);
         POP_SIZE = POP_SIZE / GROUP_SIZE;
         ConfigSGPG();
         break;
 
       case REPRESENTATION_ID__SIGNALGPCOMM:
+        othello_dreamware = all_dreamware[0];
         emp_assert(POP_SIZE % GROUP_SIZE == 0);
         POP_SIZE = POP_SIZE / GROUP_SIZE;
         ConfigSGPG();
@@ -395,7 +396,7 @@ public:
   ~EnsembleExp()
   {
     random.Delete();
-    othello_dreamware.Delete();
+    if (REPRESENTATION == REPRESENTATION_ID__SIGNALGP) othello_dreamware.Delete();
     sgp_world.Delete();
     sgpg_world.Delete();
     sgp_inst_lib.Delete();
@@ -474,6 +475,7 @@ public:
   void RunSetup();
 
   void ResetHardware();
+  void ResetHardwareGroup();
 
   // Functions to manage othello games
   double EvalGame(SignalGPAgent &agent, std::function<othello_idx_t()> &heuristic_func, bool start_player);

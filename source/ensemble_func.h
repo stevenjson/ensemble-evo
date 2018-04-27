@@ -885,6 +885,17 @@ void EnsembleExp::ResetHardware()
   othello_dreamware->SetActiveDream(0);
 }
 
+/// Resets the state of the organism being evaluated.
+void EnsembleExp::ResetHardwareGroup()
+{
+  SGPG__ResetHW();
+  for (auto dreamware : all_dreamware)
+  {
+    dreamware->Reset(*game_hw);
+    dreamware->SetActiveDream(0);
+  }
+}
+
 /// Evaluate a single move for the currently selected organism.
 /// param: agent, the current organism to evaluate
 /// returns: the given agent's move
@@ -910,17 +921,30 @@ EnsembleExp::othello_idx_t EnsembleExp::EvalMoveGroup(GroupSignalGPAgent &agent)
   emp::vector<size_t> move_choices;
   size_t most_votes = 0;
 
-  for (auto program : agent.GetGenome()){
-    sgp_eval_hw->SetProgram(program);
-    ResetHardware();
-    // Run agent until time is up or until agent indicates it is done evaluating.
-    for (eval_time = 0; eval_time < EVAL_TIME && !(bool)sgp_eval_hw->GetTrait(TRAIT_ID__DONE); ++eval_time)
+  emp::vector<SGP__program_t> & genomes = agent.GetGenome();
+
+  for (size_t i = 0; i < genomes.size(); ++i)
+  {
+    sgpg_eval_hw[i]->SetProgram(genomes[i]);
+  }
+
+  ResetHardwareGroup();
+  
+  // Run agent until time is up or until agent indicates it is done evaluating.
+  for (eval_time = 0; eval_time < EVAL_TIME; ++eval_time)
+  {
+    for (size_t i = 0; i < sgpg_eval_hw.size(); ++i)
     {
-      sgp_eval_hw->SingleProcess();
+      if ((bool)sgpg_eval_hw[i]->GetTrait(TRAIT_ID__DONE)) continue;
+      othello_dreamware = all_dreamware[i];
+      sgpg_eval_hw[i]->SingleProcess();
     }
-    othello_idx_t move = GetOthelloIndex((size_t)sgp_eval_hw->GetTrait(TRAIT_ID__MOVE));
-    //if (move.pos != 0 && move.pos != 64) std::cout<<agent.agent_id<<" Agent Vote: "<<move.pos<<std::endl;
-    if (move.pos == OTHELLO_BOARD_NUM_CELLS) continue;
+  }
+
+  for (auto hw : sgpg_eval_hw)
+  {
+    othello_idx_t move = GetOthelloIndex((size_t)hw->GetTrait(TRAIT_ID__MOVE));
+
     if (!game_hw->IsValidMove(game_hw->GetCurPlayer(), move)) continue;
     votes[move.pos] += 1;
 
@@ -930,8 +954,10 @@ EnsembleExp::othello_idx_t EnsembleExp::EvalMoveGroup(GroupSignalGPAgent &agent)
       move_choices.push_back(move.pos);
       most_votes = votes[move.pos];
     }
-    else if (votes[move.pos] == most_votes) move_choices.push_back(move.pos);
+    else if (votes[move.pos] == most_votes)
+      move_choices.push_back(move.pos);
   }
+
   size_t move_count = move_choices.size();
   return move_count ? GetOthelloIndex(move_choices[random->GetUInt(0, move_count)]) : GetOthelloIndex(OTHELLO_BOARD_NUM_CELLS);
 }
@@ -990,7 +1016,10 @@ double EnsembleExp::EvalGameGroup(GroupSignalGPAgent &agent, std::function<othel
   game_hw->Reset();
   double score = 0;
   bool curr_player = start_player; //random->GetInt(0, 2); //Choose start player, 0 is individual, 1 is heuristic
-  othello_dreamware->SetPlayerID((curr_player == 0) ? othello_t::DARK : othello_t::LIGHT);
+  for (auto dreamware : all_dreamware)
+  {
+    dreamware->SetPlayerID((curr_player == 0) ? othello_t::DARK : othello_t::LIGHT);
+  }
 
   // Main game loop
   for (size_t round_num = 0; round_num < OTHELLO_MAX_ROUND_CNT; ++round_num)
