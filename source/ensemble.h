@@ -39,6 +39,8 @@ constexpr size_t REPRESENTATION_ID__SIGNALGPCOMM = 2;
 
 constexpr size_t TRAIT_ID__MOVE = 0;
 constexpr size_t TRAIT_ID__DONE = 1;
+constexpr size_t TRAIT_ID__GID = 2;
+constexpr size_t TRAIT_ID__LOC = 3;
 
 constexpr size_t INIT_RANDOM = 0;
 constexpr size_t INIT_ANCESTOR = 1;
@@ -518,6 +520,14 @@ public:
   void SGPG__ResetHW(const SGP__memory_t &main_in_mem = SGP__memory_t());
 
   // -- Declarations of SignalGP Instructions defined in Ensemble_Instructions.h --
+  static void Inst_SendMsgFacing(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  static void Inst_BroadcastMsg(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  static void Inst_SetFace(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  static void Inst_GetFace(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  void EventDriven__DispatchMessageFacing(SGP__hardware_t &hw, const SGP__event_t &event);
+  void EventDriven__DispatchMessageBroadcast(SGP__hardware_t &hw, const SGP__event_t &event);
+  static void HandleEvent_MessageForking(SGP__hardware_t &hw, const SGP__event_t &event);
+
   // Fork
   void SGP__Inst_Fork(SGP__hardware_t &hw, const SGP__inst_t &inst);
   // BoardWidth

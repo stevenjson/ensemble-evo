@@ -121,10 +121,79 @@ void EnsembleExp::ConfigSGP_InstLib() {
 
 
 void EnsembleExp::ConfigCommunicationLib() {
-  std::cout<< "ERROR: Need to Configure Comm stuff still..."<<std::endl;
-  exit(-1);
+
+  sgp_inst_lib->AddInst("SendMsgFacing", Inst_SendMsgFacing, 0, "Send output memory as message event to faced neighbor.", emp::ScopeType::BASIC, 0, {"affinity"});
+  sgp_inst_lib->AddInst("BroadcastMsg", Inst_BroadcastMsg, 0, "Broadcast output memory as message event.", emp::ScopeType::BASIC, 0, {"affinity"});
+  sgp_inst_lib->AddInst("GetFace", Inst_GetFace, 1, "Local memory Arg1 => Current deme member selected.");
+  sgp_inst_lib->AddInst("SetFace", Inst_SetFace, 1, "Set facing trait to Local Reg Arg1");
+  sgp_event_lib->AddEvent("MessageFacing", HandleEvent_MessageForking, "Event for messaging neighbors.");
+  sgp_event_lib->AddEvent("MessageBroadcast", HandleEvent_MessageForking, "Event for broadcasting a message.");
+
+  // Event-driven-specific.
+  sgp_event_lib->RegisterDispatchFun("MessageFacing", [this](SGP__hardware_t &hw, const SGP__event_t &event) {
+    this->EventDriven__DispatchMessageFacing(hw, event);
+  });
+  sgp_event_lib->RegisterDispatchFun("MessageBroadcast", [this](SGP__hardware_t &hw, const SGP__event_t &event) {
+    this->EventDriven__DispatchMessageBroadcast(hw, event);
+  });
 }
 
+void EnsembleExp::Inst_SetFace(SGP__hardware_t &hw, const SGP__inst_t &inst)
+{
+  hw.SetTrait(TRAIT_ID__GID, (size_t)inst.args[0]);
+}
+
+void EnsembleExp::Inst_GetFace(SGP__hardware_t &hw, const SGP__inst_t &inst)
+{
+  SGP__state_t & state = hw.GetCurState();
+  state.SetLocal(inst.args[0], hw.GetTrait(TRAIT_ID__GID));
+}
+
+/// Instruction: SendMsgFacing
+/// Description: Send message to faced neighbor (as determined by hardware direction trait).
+void EnsembleExp::Inst_SendMsgFacing(SGP__hardware_t &hw, const SGP__inst_t &inst)
+{
+  SGP__state_t &state = hw.GetCurState();
+  hw.TriggerEvent("MessageFacing", inst.affinity, state.output_mem, {"send"});
+}
+
+/// Instruction: BroadcastMsg
+/// Description: Broadcast a message to all neighbors.
+void EnsembleExp::Inst_BroadcastMsg(SGP__hardware_t &hw, const SGP__inst_t &inst)
+{
+  SGP__state_t &state = hw.GetCurState();
+  hw.TriggerEvent("MessageBroadcast", inst.affinity, state.output_mem, {"broadcast"});
+}
+
+/// Dispatch straight to faced neighbor.
+/// NOTE: needs access to eval_deme to know who neighbors are.
+void EnsembleExp::EventDriven__DispatchMessageFacing(SGP__hardware_t &hw, const SGP__event_t &event)
+{
+  const size_t loc = (size_t)hw.GetTrait(TRAIT_ID__LOC);
+  emp_assert(GROUP_SIZE > 1); // cant mod by 0
+  const size_t facing_id = emp::Mod(loc + 1 + emp::Mod(hw.GetTrait(TRAIT_ID__GID), GROUP_SIZE - 1), GROUP_SIZE); // Can get all group ids except own
+  sgpg_eval_hw[facing_id]->QueueEvent(event);
+}
+
+/// Dispatch to all of hw's neighbors.
+/// NOTE: needs access to eval_deme to know who neighbors are.
+void EnsembleExp::EventDriven__DispatchMessageBroadcast(SGP__hardware_t &hw, const SGP__event_t &event)
+{
+  emp_assert(GROUP_SIZE > 1); // cant mod by 0
+  for (size_t i = 1; i < GROUP_SIZE; ++i)
+  {
+    size_t facing_id = emp::Mod(hw.GetTrait(TRAIT_ID__LOC) + i, GROUP_SIZE); // Can get all group ids except own
+    sgpg_eval_hw[facing_id]->QueueEvent(event);
+  }
+}
+
+/// Event handler: MessageForking
+/// Description: Handles a message by spawning a new core with event data.
+void EnsembleExp::HandleEvent_MessageForking(SGP__hardware_t &hw, const SGP__event_t &event)
+{
+  // Spawn a new core.
+  hw.SpawnCore(event.affinity, hw.GetMinBindThresh(), event.msg);
+}
 
 // --- SGP instruction implementations ---
 // SGP__Inst_Fork

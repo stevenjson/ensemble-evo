@@ -122,12 +122,14 @@ void EnsembleExp::SGP__ResetHW(const SGP__memory_t &main_in_mem)
 /// main thread to be equal to main_in_mem.
 void EnsembleExp::SGPG__ResetHW(const SGP__memory_t &main_in_mem)
 {
-  for (auto hw : sgpg_eval_hw)
+  for (size_t i = 0; i < sgpg_eval_hw.size(); ++i)
   {
-    hw->ResetHardware();
-    hw->SetTrait(TRAIT_ID__MOVE, -1);
-    hw->SetTrait(TRAIT_ID__DONE, 0);
-    hw->SpawnCore(0, main_in_mem, true);
+    sgpg_eval_hw[i]->ResetHardware();
+    sgpg_eval_hw[i]->SetTrait(TRAIT_ID__MOVE, -1);
+    sgpg_eval_hw[i]->SetTrait(TRAIT_ID__DONE, 0);
+    sgpg_eval_hw[i]->SetTrait(TRAIT_ID__GID, 0);
+    sgpg_eval_hw[i]->SetTrait(TRAIT_ID__LOC, i);
+    sgpg_eval_hw[i]->SpawnCore(0, main_in_mem, true);
   }
 }
 
