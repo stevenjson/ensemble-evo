@@ -2,6 +2,7 @@ from subprocess import Popen, PIPE, call
 import os
 
 def CreateProgramFiles(pop_path, gp_path):
+    
     if not os.path.isdir(pop_path):
         print(f"Invalid path '{pop_path}'")
         exit(-1)
@@ -40,8 +41,8 @@ def CreateProgramFiles(pop_path, gp_path):
 
 if __name__ == '__main__':
     compete_type = 0
-    path_1 = "REP0_S0_GEN2000"
-    path_2 = "REP0_S1_GEN2000"
+    path_1 = "REP0_S1_GEN2000"
+    path_2 = "REP0_S0_GEN2000"
     pop_path = '../Ensemble_Results/'
     gp_path = './programs/'
     data = [0, 0, 0, 0, 0, 0]
@@ -66,7 +67,7 @@ if __name__ == '__main__':
             output = str(stdout).split('!')[1].replace("\\n'", "").replace("\\n", "")
             output = output.split(" ")
             if int(output[2]) == 1:
-                print("Start Player:", output[4]," End Player:", output[3])
+                print("Start Player:", output[4]," End Player:", output[3], "P1:", file_1, "P2:", file_2)
             count += 1
             data[5] += int(output[4])
             if int(output[2]) == 1:
