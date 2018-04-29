@@ -946,6 +946,9 @@ EnsembleExp::othello_idx_t EnsembleExp::EvalMoveGroup(GroupSignalGPAgent &agent)
   for (auto hw : sgpg_eval_hw)
   {
     othello_idx_t move = GetOthelloIndex((size_t)hw->GetTrait(TRAIT_ID__MOVE));
+    // std::cout<<"Move Vote: "<<move.pos<<std::endl;
+    // std::cout << "DREAMWARE: " << othello_dreamware->GetPlayerID() << std::endl;
+    // othello_dreamware->GetActiveDreamOthello().Print();
 
     if (!game_hw->IsValidMove(game_hw->GetCurPlayer(), move)) continue;
     votes[move.pos] += 1;
@@ -961,6 +964,7 @@ EnsembleExp::othello_idx_t EnsembleExp::EvalMoveGroup(GroupSignalGPAgent &agent)
   }
 
   size_t move_count = move_choices.size();
+  // std::cout<<"move count: "<<move_count<<std::endl;
   return move_count ? GetOthelloIndex(move_choices[random->GetUInt(0, move_count)]) : GetOthelloIndex(OTHELLO_BOARD_NUM_CELLS);
 }
 
@@ -1282,7 +1286,10 @@ void EnsembleExp::Compete()
   // Main game loop
   for (size_t round_num = 0; round_num < OTHELLO_MAX_ROUND_CNT; ++round_num)
   {
-    othello_dreamware->SetPlayerID((curr_player == start_player) ? othello_t::DARK : othello_t::LIGHT);
+    for (auto dreamware : all_dreamware)
+    {
+      dreamware->SetPlayerID((curr_player == start_player) ? othello_t::DARK : othello_t::LIGHT);
+    }
     othello_idx_t move;
 
     switch (COMPETE_TYPE)
@@ -1304,6 +1311,7 @@ void EnsembleExp::Compete()
     {
       (curr_player == 0) ? p2_wins++ : p1_wins++;
       invalid = true;
+      // std::cout<<move.pos<<std::endl;
       break;
     }
 
@@ -1312,6 +1320,10 @@ void EnsembleExp::Compete()
       break;
     if (!go_again)
       curr_player = !curr_player; //Change current player if you don't get another turn
+    
+    // game_hw->Print();
+    // std::cout<<"DREAMWARE:"<<std::endl;
+    // othello_dreamware->GetActiveDreamOthello().Print();
   }
   double hero_score = game_hw->GetScore((start_player == 0) ? dark : light);
   double opp_score = game_hw->GetScore((start_player == 1) ? dark : light);

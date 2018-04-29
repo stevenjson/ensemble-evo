@@ -330,6 +330,7 @@ public:
     {
       all_dreamware.push_back(emp::NewPtr<OthelloHardware>(1));
     }
+    othello_dreamware = all_dreamware[0];
 
     // Configure game evaluation hardware.
     game_hw = emp::NewPtr<othello_t>();
@@ -369,19 +370,16 @@ public:
     switch (REPRESENTATION) 
     {
       case REPRESENTATION_ID__SIGNALGP:
-        othello_dreamware = emp::NewPtr<OthelloHardware>(1);
         ConfigSGP();
         break;
 
       case REPRESENTATION_ID__SIGNALGPGROUP:
-        othello_dreamware = all_dreamware[0]; 
         emp_assert(POP_SIZE % GROUP_SIZE == 0);
         POP_SIZE = POP_SIZE / GROUP_SIZE;
         ConfigSGPG();
         break;
 
       case REPRESENTATION_ID__SIGNALGPCOMM:
-        othello_dreamware = all_dreamware[0];
         emp_assert(POP_SIZE % GROUP_SIZE == 0);
         POP_SIZE = POP_SIZE / GROUP_SIZE;
         ConfigSGPG();
@@ -398,7 +396,6 @@ public:
   ~EnsembleExp()
   {
     random.Delete();
-    if (REPRESENTATION == REPRESENTATION_ID__SIGNALGP) othello_dreamware.Delete();
     sgp_world.Delete();
     sgpg_world.Delete();
     sgp_inst_lib.Delete();
