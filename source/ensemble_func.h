@@ -1252,6 +1252,8 @@ void EnsembleExp::Compete()
   emp::vector <SGP__program_t> sgpg_agent_1;
   emp::vector<SGP__program_t> sgpg_agent_2;
 
+  ConfigCommunicationLib();
+
   switch(COMPETE_TYPE)
   {
     case 0:
