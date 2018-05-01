@@ -6,6 +6,7 @@ lineage
 ensemble
 fitness.csv
 best_phenotype.csv
+compete_results.csv
 pop_*/
 temp/
 programs/
