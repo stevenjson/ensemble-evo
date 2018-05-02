@@ -50,6 +50,11 @@ if __name__ == '__main__':
     
     data_labels = ["Matchup", "P1_Wins", "P2_Wins", "Ties", "P1_Invalid_Moves", "P2_Invalid_Moves", "P2_First"]
 
+    pop_path = '../Evolved_Agents/'
+    gp_path = './programs/'
+
+    CreateProgramFiles(pop_path, gp_path)
+
     csv_out = open("compete_results.csv", "w")
     csv_writer = csv.writer(csv_out, delimiter=',')
     csv_writer.writerow(data_labels)
@@ -65,8 +70,6 @@ if __name__ == '__main__':
         compete_type = 0
         path_1 = combo[0]
         path_2 = combo[1]
-        pop_path = '../Ensemble_Results/'
-        gp_path = './programs/'
         data = [0, 0, 0, 0, 0, 0]
         seed = 1234
 
@@ -76,9 +79,7 @@ if __name__ == '__main__':
             else:
                 compete_type = 1
         else:
-            compete_type = 2
-
-        #CreateProgramFiles(pop_path, gp_path)   
+            compete_type = 2 
         
         path_1_files = os.listdir(gp_path + path_1)
         path_2_files = os.listdir(gp_path + path_2)
