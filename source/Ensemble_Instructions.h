@@ -138,6 +138,24 @@ void EnsembleExp::ConfigCommunicationLib() {
   });
 }
 
+void EnsembleExp::ConfigConfidenceLib() {
+
+  // sgp_inst_lib->AddInst("SendMsgFacing", Inst_SendMsgFacing, 0, "Send output memory as message event to faced neighbor.", emp::ScopeType::BASIC, 0, {"affinity"});
+  // sgp_inst_lib->AddInst("BroadcastMsg", Inst_BroadcastMsg, 0, "Broadcast output memory as message event.", emp::ScopeType::BASIC, 0, {"affinity"});
+  // sgp_inst_lib->AddInst("GetFace", Inst_GetFace, 1, "Local memory Arg1 => Current deme member selected.");
+  // sgp_inst_lib->AddInst("SetFace", Inst_SetFace, 1, "Set facing trait to Local Reg Arg1");
+  // sgp_event_lib->AddEvent("MessageFacing", HandleEvent_MessageForking, "Event for messaging neighbors.");
+  // sgp_event_lib->AddEvent("MessageBroadcast", HandleEvent_MessageForking, "Event for broadcasting a message.");
+
+  // // Event-driven-specific.
+  // sgp_event_lib->RegisterDispatchFun("MessageFacing", [this](SGP__hardware_t &hw, const SGP__event_t &event) {
+  //   this->EventDriven__DispatchMessageFacing(hw, event);
+  // });
+  // sgp_event_lib->RegisterDispatchFun("MessageBroadcast", [this](SGP__hardware_t &hw, const SGP__event_t &event) {
+  //   this->EventDriven__DispatchMessageBroadcast(hw, event);
+  // });
+}
+
 void EnsembleExp::Inst_SetFace(SGP__hardware_t &hw, const SGP__inst_t &inst)
 {
   hw.SetTrait(TRAIT_ID__GID, (size_t)inst.args[0]);

@@ -115,6 +115,7 @@ void EnsembleExp::SGP__ResetHW(const SGP__memory_t &main_in_mem)
   sgp_eval_hw->ResetHardware();
   sgp_eval_hw->SetTrait(TRAIT_ID__MOVE, -1);
   sgp_eval_hw->SetTrait(TRAIT_ID__DONE, 0);
+  sgp_eval_hw->SetTrait(TRAIT_ID__CONF, 0);
   sgp_eval_hw->SpawnCore(0, main_in_mem, true);
 }
 
@@ -129,6 +130,7 @@ void EnsembleExp::SGPG__ResetHW(const SGP__memory_t &main_in_mem)
     sgpg_eval_hw[i]->SetTrait(TRAIT_ID__DONE, 0);
     sgpg_eval_hw[i]->SetTrait(TRAIT_ID__GID, 0);
     sgpg_eval_hw[i]->SetTrait(TRAIT_ID__LOC, i);
+    sgpg_eval_hw[i]->SetTrait(TRAIT_ID__CONF, 0);
     sgpg_eval_hw[i]->SpawnCore(0, main_in_mem, true);
   }
 }

@@ -41,6 +41,7 @@ constexpr size_t TRAIT_ID__MOVE = 0;
 constexpr size_t TRAIT_ID__DONE = 1;
 constexpr size_t TRAIT_ID__GID = 2;
 constexpr size_t TRAIT_ID__LOC = 3;
+constexpr size_t TRAIT_ID__CONF = 4;
 
 constexpr size_t INIT_RANDOM = 0;
 constexpr size_t INIT_ANCESTOR = 1;
@@ -151,13 +152,16 @@ protected:
   size_t GENERATIONS;
   size_t EVAL_TIME;
   size_t REPRESENTATION;
-  size_t GROUP_SIZE;
   std::string ANCESTOR_FPATH;
   size_t INIT_METHOD;
   // Parameters when competing programs
   size_t COMPETE_TYPE;
   std::string COMPETE_FPATH_1;
   std::string COMPETE_FPATH_2;
+  // Ensemble Group parameters
+  size_t GROUP_SIZE;
+  bool COMMUNICATION;
+  bool CONFIDENCE;
   // Selection Group parameters
   size_t SELECTION_METHOD;
   size_t ELITE_SELECT__ELITE_CNT;
@@ -277,12 +281,14 @@ public:
     GENERATIONS = config.GENERATIONS();
     EVAL_TIME = config.EVAL_TIME();
     REPRESENTATION = config.REPRESENTATION();
-    GROUP_SIZE = config.GROUP_SIZE();
     ANCESTOR_FPATH = config.ANCESTOR_FPATH();
     INIT_METHOD = config.INIT_METHOD();
     COMPETE_TYPE = config.COMPETE_TYPE();
     COMPETE_FPATH_1 = config.COMPETE_FPATH_1();
     COMPETE_FPATH_2 = config.COMPETE_FPATH_2();
+    GROUP_SIZE = config.GROUP_SIZE();
+    COMMUNICATION = config.COMMUNICATION();
+    CONFIDENCE = config.CONFIDENCE();
     SELECTION_METHOD = config.SELECTION_METHOD();
     ELITE_SELECT__ELITE_CNT = config.ELITE_SELECT__ELITE_CNT();
     TOURNAMENT_SIZE = config.TOURNAMENT_SIZE();
@@ -379,16 +385,22 @@ public:
         ConfigSGPG();
         break;
 
-      case REPRESENTATION_ID__SIGNALGPCOMM:
-        emp_assert(POP_SIZE % GROUP_SIZE == 0);
-        POP_SIZE = POP_SIZE / GROUP_SIZE;
-        ConfigSGPG();
-        ConfigCommunicationLib();
-        break;
-
       default:
         std::cout << "Unrecognized representation configuration setting (" << REPRESENTATION << "). Exiting..." << std::endl;
         exit(-1);
+    }
+
+    if (COMMUNICATION)
+    {
+      emp_assert(REPRESENTATION == REPRESENTATION_ID__SIGNALGPGROUP);
+      ConfigCommunicationLib();
+    }
+
+    if (CONFIDENCE)
+    {
+      std::cout<<"Error: Confidence Voting is not implemented yet..."<<std::endl;
+      exit(-1);
+      ConfigConfidenceLib();
     }
   }
 
@@ -496,6 +508,7 @@ public:
   void ConfigSGPG();
   void ConfigSGP_InstLib();
   void ConfigCommunicationLib();
+  void ConfigConfidenceLib();
   void ConfigHeuristics();
 
   // Mutation functions
