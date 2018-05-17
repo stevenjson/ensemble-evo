@@ -115,7 +115,7 @@ void EnsembleExp::SGP__ResetHW(const SGP__memory_t &main_in_mem)
   sgp_eval_hw->ResetHardware();
   sgp_eval_hw->SetTrait(TRAIT_ID__MOVE, -1);
   sgp_eval_hw->SetTrait(TRAIT_ID__DONE, 0);
-  sgp_eval_hw->SetTrait(TRAIT_ID__CONF, 0);
+  sgp_eval_hw->SetTrait(TRAIT_ID__CONF, 1);
   sgp_eval_hw->SpawnCore(0, main_in_mem, true);
 }
 
@@ -130,7 +130,7 @@ void EnsembleExp::SGPG__ResetHW(const SGP__memory_t &main_in_mem)
     sgpg_eval_hw[i]->SetTrait(TRAIT_ID__DONE, 0);
     sgpg_eval_hw[i]->SetTrait(TRAIT_ID__GID, 0);
     sgpg_eval_hw[i]->SetTrait(TRAIT_ID__LOC, i);
-    sgpg_eval_hw[i]->SetTrait(TRAIT_ID__CONF, 0);
+    sgpg_eval_hw[i]->SetTrait(TRAIT_ID__CONF, 1);
     sgpg_eval_hw[i]->SpawnCore(0, main_in_mem, true);
   }
 }
@@ -948,12 +948,10 @@ EnsembleExp::othello_idx_t EnsembleExp::EvalMoveGroup(GroupSignalGPAgent &agent)
   for (auto hw : sgpg_eval_hw)
   {
     othello_idx_t move = GetOthelloIndex((size_t)hw->GetTrait(TRAIT_ID__MOVE));
-    // std::cout<<"Move Vote: "<<move.pos<<std::endl;
-    // std::cout << "DREAMWARE: " << othello_dreamware->GetPlayerID() << std::endl;
-    // othello_dreamware->GetActiveDreamOthello().Print();
+    size_t confidence = (size_t)hw->GetTrait(TRAIT_ID__CONF);
 
     if (!game_hw->IsValidMove(game_hw->GetCurPlayer(), move)) continue;
-    votes[move.pos] += 1;
+    votes[move.pos] += confidence; // confidence is always 1 if option is disabled
 
     if (votes[move.pos] > most_votes)
     {

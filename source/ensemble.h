@@ -538,6 +538,9 @@ public:
   void EventDriven__DispatchMessageBroadcast(SGP__hardware_t &hw, const SGP__event_t &event);
   static void HandleEvent_MessageForking(SGP__hardware_t &hw, const SGP__event_t &event);
 
+  void SGP__Inst_SetMoveConfidence(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  void SGP__Inst_GetMoveConfidence(SGP__hardware_t &hw, const SGP__inst_t &inst);
+
   // Fork
   void SGP__Inst_Fork(SGP__hardware_t &hw, const SGP__inst_t &inst);
   // BoardWidth

@@ -138,22 +138,15 @@ void EnsembleExp::ConfigCommunicationLib() {
   });
 }
 
-void EnsembleExp::ConfigConfidenceLib() {
-
-  // sgp_inst_lib->AddInst("SendMsgFacing", Inst_SendMsgFacing, 0, "Send output memory as message event to faced neighbor.", emp::ScopeType::BASIC, 0, {"affinity"});
-  // sgp_inst_lib->AddInst("BroadcastMsg", Inst_BroadcastMsg, 0, "Broadcast output memory as message event.", emp::ScopeType::BASIC, 0, {"affinity"});
-  // sgp_inst_lib->AddInst("GetFace", Inst_GetFace, 1, "Local memory Arg1 => Current deme member selected.");
-  // sgp_inst_lib->AddInst("SetFace", Inst_SetFace, 1, "Set facing trait to Local Reg Arg1");
-  // sgp_event_lib->AddEvent("MessageFacing", HandleEvent_MessageForking, "Event for messaging neighbors.");
-  // sgp_event_lib->AddEvent("MessageBroadcast", HandleEvent_MessageForking, "Event for broadcasting a message.");
-
-  // // Event-driven-specific.
-  // sgp_event_lib->RegisterDispatchFun("MessageFacing", [this](SGP__hardware_t &hw, const SGP__event_t &event) {
-  //   this->EventDriven__DispatchMessageFacing(hw, event);
-  // });
-  // sgp_event_lib->RegisterDispatchFun("MessageBroadcast", [this](SGP__hardware_t &hw, const SGP__event_t &event) {
-  //   this->EventDriven__DispatchMessageBroadcast(hw, event);
-  // });
+void EnsembleExp::ConfigConfidenceLib() 
+{
+  sgp_inst_lib->AddInst("SetConfidence",
+                        [this](SGP__hardware_t &hw, const SGP__inst_t &inst) { this->SGP__Inst_SetMoveConfidence(hw, inst); },
+                        1, "MoveConfidence = (WM[ARG1])");
+  
+  sgp_inst_lib->AddInst("GetMoveConfidence",
+                        [this](SGP__hardware_t & hw, const SGP__inst_t & inst) { this->SGP__Inst_GetMoveConfidence(hw, inst); },
+                        1, "WM[ARG1] = Current move confidence");
 }
 
 void EnsembleExp::Inst_SetFace(SGP__hardware_t &hw, const SGP__inst_t &inst)
@@ -211,6 +204,21 @@ void EnsembleExp::HandleEvent_MessageForking(SGP__hardware_t &hw, const SGP__eve
 {
   // Spawn a new core.
   hw.SpawnCore(event.affinity, hw.GetMinBindThresh(), event.msg);
+}
+
+// SGP__Inst_SetMoveConfidence
+void EnsembleExp::SGP__Inst_SetMoveConfidence(SGP__hardware_t &hw, const SGP__inst_t &inst)
+{
+  SGP__state_t &state = hw.GetCurState();
+  const size_t confidence = (size_t)state.GetLocal(inst.args[0]);
+  hw.SetTrait(TRAIT_ID__CONF, confidence);
+}
+
+// SGP__Inst_GetMoveConfidence
+void EnsembleExp::SGP__Inst_GetMoveConfidence(SGP__hardware_t & hw, const SGP__inst_t & inst) {
+  SGP__state_t & state = hw.GetCurState();
+  const size_t confidence = hw.GetTrait(TRAIT_ID__MOVE);
+  state.SetLocal(inst.args[0], confidence);
 }
 
 // --- SGP instruction implementations ---
