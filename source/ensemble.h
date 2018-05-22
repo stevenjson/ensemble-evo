@@ -28,39 +28,49 @@
 #include "OthelloHW.h"
 #include "ensemble-config.h"
 
+// SignalGP Specific Constants
 constexpr size_t SGP__TAG_WIDTH = 16;
 
+// Othello Specific Constants
 constexpr size_t OTHELLO_BOARD_WIDTH = 8;
 constexpr size_t OTHELLO_BOARD_NUM_CELLS = OTHELLO_BOARD_WIDTH * OTHELLO_BOARD_WIDTH;
 
+// Program Representation Options
 constexpr size_t REPRESENTATION_ID__SIGNALGP = 0;
 constexpr size_t REPRESENTATION_ID__SIGNALGPGROUP = 1;
-constexpr size_t REPRESENTATION_ID__SIGNALGPCOMM = 2;
 
+// Agent trait locations
 constexpr size_t TRAIT_ID__MOVE = 0;
 constexpr size_t TRAIT_ID__DONE = 1;
 constexpr size_t TRAIT_ID__GID = 2;
 constexpr size_t TRAIT_ID__LOC = 3;
 constexpr size_t TRAIT_ID__CONF = 4;
 
+// Population Initialization Method Options 
 constexpr size_t INIT_RANDOM = 0;
 constexpr size_t INIT_ANCESTOR = 1;
 
+// Constants for how evolving agents should see Othello boards
 constexpr int AGENT_VIEW__ILLEGAL_ID = -1;
 constexpr int AGENT_VIEW__OPEN_ID = 0;
 constexpr int AGENT_VIEW__SELF_ID = 1;
 constexpr int AGENT_VIEW__OPP_ID = 2;
 
+// Selection Method Options
 constexpr size_t SELECTION_METHOD_ID__TOURNAMENT = 0;
 constexpr size_t SELECTION_METHOD_ID__LEXICASE = 1;
 
+
+// Master class that runs the entire experiment and keeps track of config settings
 class EnsembleExp {
+// Aliases and Wrapper Structs
 public:
-  // @aliases
+  // Othello type aliases
   using othello_t = emp::Othello8;
   using player_t = othello_t::Player;
   using facing_t = othello_t::Facing;
   using othello_idx_t = othello_t::Index;
+
   // SignalGP-specific type aliases:
   using SGP__hardware_t = emp::EventDrivenGP_AW<SGP__TAG_WIDTH>;
   using SGP__program_t = SGP__hardware_t::Program;
@@ -72,7 +82,7 @@ public:
   using SGP__memory_t = SGP__hardware_t::memory_t;
   using SGP__tag_t = SGP__hardware_t::affinity_t;
 
-  // Agent structure to be used to wrap organisms
+  /// Agent structure to be used to wrap organisms
   struct SignalGPAgent
   {
     SGP__program_t program;
@@ -101,6 +111,7 @@ public:
     SGP__program_t &GetGenome() { return program; }
   };
 
+  /// Agent structure to be used to wrap ensembles
   struct GroupSignalGPAgent
   {
     emp::vector<SGP__program_t> programs;
@@ -129,7 +140,7 @@ public:
     emp::vector<SGP__program_t> &GetGenome() { return programs; }
   };
 
-  // Struct to keep track of fitness for all heuristic functions
+  /// Struct to keep track of fitness for all heuristic functions
   struct Phenotype
   {
     emp::vector<double> heuristic_scores;
@@ -144,6 +155,7 @@ public:
   using SGPG__world_t = emp::World<GroupSignalGPAgent, data_t>;
   using SGP__genotype_t = SGP__world_t::genotype_t;
 
+// Declaring Member Variables and board navigation functions
 protected:
   // General parameters
   size_t RUN_MODE;
@@ -154,7 +166,7 @@ protected:
   size_t REPRESENTATION;
   std::string ANCESTOR_FPATH;
   size_t INIT_METHOD;
-  // Parameters when competing programs
+  // Proogram Competition Parameters
   size_t COMPETE_TYPE;
   std::string COMPETE_FPATH_1;
   std::string COMPETE_FPATH_2;
@@ -196,16 +208,17 @@ protected:
 
   emp::Ptr<emp::Random> random;
 
+  // Othello Player Types
   emp::Othello8::Player dark = emp::Othello8::Player::DARK;
   emp::Othello8::Player light = emp::Othello8::Player::LIGHT;
 
   // Expirement hardware
-  emp::Ptr<OthelloHardware> othello_dreamware;  ///< Othello game board dreamware!
-  emp::vector<emp::Ptr<OthelloHardware>> all_dreamware;
-  emp::Ptr<SGP__hardware_t> sgp_eval_hw;        ///< Hardware used to evaluate SignalGP programs during evolution/analysis.
-  emp::vector <emp::Ptr<SGP__hardware_t>> sgpg_eval_hw;
-  emp::Ptr<othello_t> game_hw;                  ///< Hardware used to evaluate games during fitness calculation
-  emp::Ptr<othello_t> test_hw;
+  emp::Ptr<OthelloHardware> othello_dreamware;          ///< Othello game board dreamware!
+  emp::vector<emp::Ptr<OthelloHardware>> all_dreamware; ///< Ensemble Othello game board dreamware!
+  emp::Ptr<SGP__hardware_t> sgp_eval_hw;                ///< Hardware used to evaluate SignalGP programs during evolution/analysis.
+  emp::vector <emp::Ptr<SGP__hardware_t>> sgpg_eval_hw; ///< Hardware used to evaluate Ensembles during evolution/analysis.
+  emp::Ptr<othello_t> game_hw;                          ///< Hardware used to evaluate games during fitness calculation
+  emp::Ptr<othello_t> test_hw;                          ///< Hardware used to run heuristic functions
 
   // Expirement variables
   size_t update;                ///< Current update/generation.
@@ -214,9 +227,9 @@ protected:
   size_t best_agent_id;         ///< What is the id of the current best organism?
 
   /// Fitness vectors
-  emp::vector<Phenotype> agent_phen_cache;                                  ///< Cache for organims fitness.
-  emp::vector<std::function<othello_idx_t()>> heuristics;    ///< Heuristic functions for fitness evaluation.
-  emp::vector<std::function<double(SignalGPAgent &)>> sgp_lexicase_fit_set; ///< Fit set for SGP lexicase selection.
+  emp::vector<Phenotype> agent_phen_cache;                                        ///< Cache for organims fitness.
+  emp::vector<std::function<othello_idx_t()>> heuristics;                         ///< Heuristic functions for fitness evaluation.
+  emp::vector<std::function<double(SignalGPAgent &)>> sgp_lexicase_fit_set;       ///< Fit set for SGP lexicase selection.
   emp::vector<std::function<double(GroupSignalGPAgent &)>> sgpg_lexicase_fit_set; ///< Fit set for SGP lexicase selection.
 
   // SignalGP-specifics.
@@ -268,6 +281,7 @@ protected:
     return facing_t::N; //< Should never get here.
   }
 
+// Experiment Method Declarations (with some definitions)
 public:
   /// Constructor for the expirement.
   /// param: config, the configured parameters for the expirement
@@ -320,7 +334,7 @@ public:
     // What is the maximum number of rounds for an othello game?
     OTHELLO_MAX_ROUND_CNT = (OTHELLO_BOARD_WIDTH * OTHELLO_BOARD_WIDTH) - 4;
 
-    ConfigHeuristics();
+    ConfigHeuristics(); // Add defined heuristics to class
 
     // Initialize fitness caching
     agent_phen_cache.resize(POP_SIZE);
@@ -340,15 +354,13 @@ public:
 
     // Configure game evaluation hardware.
     game_hw = emp::NewPtr<othello_t>();
-
-    //
     test_hw = emp::NewPtr<othello_t>();
 
     // Make the worlds
     sgp_world = emp::NewPtr<SGP__world_t>(random, "SGP-Ensemble-World");
     sgpg_world = emp::NewPtr<SGPG__world_t>(random, "SGP-Group-Ensemble-World");
 
-    // Configure instruction/event libraries.
+    // Initialize instruction/event libraries.
     sgp_inst_lib = emp::NewPtr<SGP__inst_lib_t>();
     sgp_event_lib = emp::NewPtr<SGP__event_lib_t>();
 
@@ -356,6 +368,7 @@ public:
     mkdir(DATA_DIRECTORY.c_str(), ACCESSPERMS);
     if (DATA_DIRECTORY.back() != '/') DATA_DIRECTORY += '/';
 
+    // Configure agent evaluation hardware
     sgp_eval_hw = emp::NewPtr<SGP__hardware_t>(sgp_inst_lib, sgp_event_lib, random);
     sgp_eval_hw->SetMinBindThresh(SGP_HW_MIN_BIND_THRESH);
     sgp_eval_hw->SetMaxCores(SGP_HW_MAX_CORES);
@@ -371,7 +384,7 @@ public:
       sgpg_eval_hw.push_back(temp);
     }
 
-    ConfigSGP_InstLib();
+    ConfigSGP_InstLib(); // Configure instruction/Event libraries
 
     switch (REPRESENTATION) 
     {
@@ -419,17 +432,19 @@ public:
     for (auto ptr : all_dreamware) {ptr.Delete();}
   }
 
-  /// Fitness function for cached fitness
+  /// Fitness function for cached fitness of individual agents
   double CalcFitness(SignalGPAgent &agent)
   {
     return agent_phen_cache[agent.GetID()].aggregate_score;
   }
 
+  /// Fitness function for cached fitness of ensembles
   double CalcFitness(GroupSignalGPAgent &agent)
   {
     return agent_phen_cache[agent.GetID()].aggregate_score;
   }
 
+  /// Record phenotypic performance of best agent/ensemble in population 
   template <typename WORLD_TYPE>
   emp::DataFile &AddBestPhenotypeFile(WORLD_TYPE &world, const std::string &fpath = "best_phenotype.csv")
   {
@@ -481,10 +496,10 @@ public:
   }
 
   // -- Declaration of methods defined in ensemble_func.h --
+  // General Functions to manage the evolution
   void Run();
   void RunStep();
   void RunSetup();
-
   void ResetHardware();
   void ResetHardwareGroup();
 
@@ -493,6 +508,8 @@ public:
   double EvalGameGroup(GroupSignalGPAgent &agent, std::function<othello_idx_t()> &heuristic_func, bool start_player);
   othello_idx_t EvalMove(SignalGPAgent &agent);
   othello_idx_t EvalMoveGroup(GroupSignalGPAgent &agent);
+  
+  // Functions to manage competition of evolved agents/ensembles
   void Compete();
   emp::vector<SGP__program_t> LoadGroupCompete(std::string path);
   SGP__program_t LoadIndividualCompete(std::string path);
@@ -517,7 +534,7 @@ public:
   size_t SGPG__Mutate_FixedLength(GroupSignalGPAgent &agent, emp::Random &rnd);
   size_t SGPG__Mutate_VariableLength(GroupSignalGPAgent &agent, emp::Random &rnd);
 
-  // Population snapshot functions
+  // Population snapshot functions (writes genomes of current population to file)
   void SGP_Snapshot_SingleFile(size_t update);
   void SGPG_Snapshot_SingleFile(size_t update);
 
@@ -530,16 +547,15 @@ public:
   void SGPG__ResetHW(const SGP__memory_t &main_in_mem = SGP__memory_t());
 
   // -- Declarations of SignalGP Instructions defined in Ensemble_Instructions.h --
+  // Event-based communication instructions
   static void Inst_SendMsgFacing(SGP__hardware_t &hw, const SGP__inst_t &inst);
   static void Inst_BroadcastMsg(SGP__hardware_t &hw, const SGP__inst_t &inst);
   static void Inst_SetFace(SGP__hardware_t &hw, const SGP__inst_t &inst);
   static void Inst_GetFace(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  // Event library instructions for communication
+  static void HandleEvent_MessageForking(SGP__hardware_t &hw, const SGP__event_t &event);
   void EventDriven__DispatchMessageFacing(SGP__hardware_t &hw, const SGP__event_t &event);
   void EventDriven__DispatchMessageBroadcast(SGP__hardware_t &hw, const SGP__event_t &event);
-  static void HandleEvent_MessageForking(SGP__hardware_t &hw, const SGP__event_t &event);
-
-  void SGP__Inst_SetMoveConfidence(SGP__hardware_t &hw, const SGP__inst_t &inst);
-  void SGP__Inst_GetMoveConfidence(SGP__hardware_t &hw, const SGP__inst_t &inst);
 
   // Fork
   void SGP__Inst_Fork(SGP__hardware_t &hw, const SGP__inst_t &inst);
@@ -553,6 +569,9 @@ public:
   // GetMove
   void SGP__Inst_GetMoveXY(SGP__hardware_t &hw, const SGP__inst_t &inst);
   void SGP__Inst_GetMoveID(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  // Move Confidence
+  void SGP__Inst_SetMoveConfidence(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  void SGP__Inst_GetMoveConfidence(SGP__hardware_t &hw, const SGP__inst_t &inst);
   // Adjacent
   void SGP__Inst_AdjacentXY(SGP__hardware_t &hw, const SGP__inst_t &inst);
   void SGP__Inst_AdjacentID(SGP__hardware_t &hw, const SGP__inst_t &inst);

@@ -6,7 +6,6 @@
 
 #include "config/command_line.h"
 #include "config/ArgManager.h"
-
 #include "../ensemble-config.h"
 #include "../ensemble.h"
 
@@ -30,7 +29,8 @@ int main(int argc, char* argv[])
   std::cout << "==============================\n"
             << std::endl;
 
+  // Run evolution or compete organisms
   EnsembleExp e(config);
-  if (config.COMPETE() == 0) e.Run();
+  if (config.COMPETE() == false) e.Run();
   else e.Compete();
 }
