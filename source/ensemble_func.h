@@ -921,7 +921,7 @@ EnsembleExp::othello_idx_t EnsembleExp::EvalMove(SignalGPAgent &agent)
 /// returns: the given agent's move
 EnsembleExp::othello_idx_t EnsembleExp::EvalMoveGroup(GroupSignalGPAgent &agent)
 {
-  emp::array<size_t, OTHELLO_BOARD_NUM_CELLS> votes = {};
+  agent_votes = {};
   emp::vector<size_t> move_choices;
   size_t most_votes = 0;
 
@@ -945,23 +945,52 @@ EnsembleExp::othello_idx_t EnsembleExp::EvalMoveGroup(GroupSignalGPAgent &agent)
     }
   }
 
-  for (auto hw : sgpg_eval_hw)
+  for (size_t i = 0; i < agent_votes.size(); ++i)
   {
-    othello_idx_t move = GetOthelloIndex((size_t)hw->GetTrait(TRAIT_ID__MOVE));
-    size_t confidence = (size_t)hw->GetTrait(TRAIT_ID__CONF);
-
-    if (!game_hw->IsValidMove(game_hw->GetCurPlayer(), move)) continue;
-    votes[move.pos] += confidence; // confidence is always 1 if option is disabled
-
-    if (votes[move.pos] > most_votes)
+    if (agent_votes[i] == 0) continue;
+    if (!game_hw->IsValidMove(game_hw->GetCurPlayer(), GetOthelloIndex(i))) continue;
+    if (agent_votes[i] > most_votes)
     {
       move_choices.clear();
-      move_choices.push_back(move.pos);
-      most_votes = votes[move.pos];
+      move_choices.push_back(i);
+      most_votes = agent_votes[i];
     }
-    else if (votes[move.pos] == most_votes)
-      move_choices.push_back(move.pos);
+    else if (agent_votes[i] == most_votes)
+    {
+      move_choices.push_back(i);
+    }
   }
+
+  // for (auto hw : sgpg_eval_hw)
+  // {
+  //   othello_idx_t move = GetOthelloIndex((size_t)hw->GetTrait(TRAIT_ID__MOVE));
+  //   size_t confidence = (size_t)hw->GetTrait(TRAIT_ID__CONF);
+
+  //   if (!game_hw->IsValidMove(game_hw->GetCurPlayer(), move)) continue;
+  //   agent_votes[move.pos] += confidence; // confidence is always 1 if option is disabled
+
+  //   if (agent_votes[move.pos] > most_votes)
+  //   {
+  //     move_choices.clear();
+  //     move_choices.push_back(move.pos);
+  //     most_votes = agent_votes[move.pos];
+  //   }
+  //   else if (agent_votes[move.pos] == most_votes)
+  //     move_choices.push_back(move.pos);
+  // }
+
+  // if (most_votes > GROUP_SIZE) std::cout<< "Votes: "<<most_votes<<std::endl;
+
+  // for (auto i : agent_votes){
+  //   std::cout<<i<<" ";
+  // }
+  // std::cout<<std::endl;
+
+  // for (auto move : move_choices)
+  // {
+  //   std::cout<<move<<" ";
+  // }
+  // std::cout<<std::endl;
 
   size_t move_count = move_choices.size();
   // std::cout<<"move count: "<<move_count<<std::endl;
