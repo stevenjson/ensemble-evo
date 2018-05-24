@@ -131,6 +131,8 @@ void EnsembleExp::SGPG__ResetHW(const SGP__memory_t &main_in_mem)
     sgpg_eval_hw[i]->SetTrait(TRAIT_ID__GID, 0);
     sgpg_eval_hw[i]->SetTrait(TRAIT_ID__LOC, i);
     sgpg_eval_hw[i]->SetTrait(TRAIT_ID__CONF, 1);
+    sgpg_eval_hw[i]->SetTrait(TRAIT_ID__CAST, 0);
+    sgpg_eval_hw[i]->SetTrait(TRAIT_ID__INVALID, 0);
     sgpg_eval_hw[i]->SpawnCore(0, main_in_mem, true);
   }
 }
@@ -961,36 +963,17 @@ EnsembleExp::othello_idx_t EnsembleExp::EvalMoveGroup(GroupSignalGPAgent &agent)
     }
   }
 
-  // for (auto hw : sgpg_eval_hw)
-  // {
-  //   othello_idx_t move = GetOthelloIndex((size_t)hw->GetTrait(TRAIT_ID__MOVE));
-  //   size_t confidence = (size_t)hw->GetTrait(TRAIT_ID__CONF);
+  for (auto hw : sgpg_eval_hw)
+  {
+    size_t num_votes = hw->GetTrait(TRAIT_ID__CAST);
+    size_t num_invalid = hw->GetTrait(TRAIT_ID__INVALID);
 
-  //   if (!game_hw->IsValidMove(game_hw->GetCurPlayer(), move)) continue;
-  //   agent_votes[move.pos] += confidence; // confidence is always 1 if option is disabled
-
-  //   if (agent_votes[move.pos] > most_votes)
-  //   {
-  //     move_choices.clear();
-  //     move_choices.push_back(move.pos);
-  //     most_votes = agent_votes[move.pos];
-  //   }
-  //   else if (agent_votes[move.pos] == most_votes)
-  //     move_choices.push_back(move.pos);
-  // }
-
-  // if (most_votes > GROUP_SIZE) std::cout<< "Votes: "<<most_votes<<std::endl;
-
-  // for (auto i : agent_votes){
-  //   std::cout<<i<<" ";
-  // }
-  // std::cout<<std::endl;
-
-  // for (auto move : move_choices)
-  // {
-  //   std::cout<<move<<" ";
-  // }
-  // std::cout<<std::endl;
+    if (num_votes < 1)
+      vote_penalties += PENALTY;
+    else{
+      vote_penalties += PENALTY * num_invalid;
+    }
+  }
 
   size_t move_count = move_choices.size();
   // std::cout<<"move count: "<<move_count<<std::endl;
@@ -1050,6 +1033,7 @@ double EnsembleExp::EvalGameGroup(GroupSignalGPAgent &agent, std::function<othel
   // Initialize othello game
   game_hw->Reset();
   double score = 0;
+  vote_penalties = 0;
   bool curr_player = start_player; //random->GetInt(0, 2); //Choose start player, 0 is individual, 1 is heuristic
   for (auto dreamware : all_dreamware)
   {
@@ -1067,7 +1051,7 @@ double EnsembleExp::EvalGameGroup(GroupSignalGPAgent &agent, std::function<othel
     if (!game_hw->IsValidMove(game_hw->GetCurPlayer(), move))
     {
       emp_assert(curr_player != 1); // Heuristic should not give an invalid move
-      return score;
+      return score - vote_penalties;
     }
 
     bool go_again = game_hw->DoNextMove(move);
@@ -1085,7 +1069,7 @@ double EnsembleExp::EvalGameGroup(GroupSignalGPAgent &agent, std::function<othel
   emp_assert(game_hw->IsOver());
 
   // Bonus for completing game, increased by performance in game. Max possible fitness is 235 per heuristic.
-  score = 2 * OTHELLO_MAX_ROUND_CNT + hero_score;
+  score = 2 * OTHELLO_MAX_ROUND_CNT + hero_score - vote_penalties;
   if (hero_score > opp_score)
   {
     score += 2 * rounds_left;

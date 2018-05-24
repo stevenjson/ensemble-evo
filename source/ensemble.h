@@ -42,6 +42,8 @@ constexpr size_t TRAIT_ID__DONE = 1;
 constexpr size_t TRAIT_ID__GID = 2;
 constexpr size_t TRAIT_ID__LOC = 3;
 constexpr size_t TRAIT_ID__CONF = 4;
+constexpr size_t TRAIT_ID__CAST = 5;
+constexpr size_t TRAIT_ID__INVALID = 6;
 
 constexpr size_t INIT_RANDOM = 0;
 constexpr size_t INIT_ANCESTOR = 1;
@@ -163,6 +165,7 @@ protected:
   bool COMMUNICATION;
   bool CONFIDENCE;
   bool MULTIVOTE;
+  size_t PENALTY;
   // Selection Group parameters
   size_t SELECTION_METHOD;
   size_t ELITE_SELECT__ELITE_CNT;
@@ -213,9 +216,11 @@ protected:
   size_t eval_time;             ///< Current evaluation time point (within an agent's turn).
   size_t OTHELLO_MAX_ROUND_CNT; ///< What are the maximum number of rounds in game?
   size_t best_agent_id;         ///< What is the id of the current best organism?
+  size_t vote_penalties;
 
-  /// Fitness vectors
-  emp::vector<Phenotype> agent_phen_cache;                                  ///< Cache for organims fitness.
+      /// Fitness vectors
+      emp::vector<Phenotype>
+          agent_phen_cache;                                  ///< Cache for organims fitness.
   emp::vector<std::function<othello_idx_t()>> heuristics;    ///< Heuristic functions for fitness evaluation.
   emp::vector<std::function<double(SignalGPAgent &)>> sgp_lexicase_fit_set; ///< Fit set for SGP lexicase selection.
   emp::vector<std::function<double(GroupSignalGPAgent &)>> sgpg_lexicase_fit_set; ///< Fit set for SGP lexicase selection.
@@ -292,6 +297,7 @@ public:
     COMMUNICATION = config.COMMUNICATION();
     CONFIDENCE = config.CONFIDENCE();
     MULTIVOTE = config.MULTIVOTE();
+    PENALTY = config.PENALTY();
     SELECTION_METHOD = config.SELECTION_METHOD();
     ELITE_SELECT__ELITE_CNT = config.ELITE_SELECT__ELITE_CNT();
     TOURNAMENT_SIZE = config.TOURNAMENT_SIZE();
