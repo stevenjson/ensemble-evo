@@ -529,7 +529,7 @@ public:
 
   // Functions to manage othello games
   double EvalGame(SignalGPAgent &agent, SignalGPAgent &opp, bool start_player);
-  double EvalGameGroup(GroupSignalGPAgent &agent, std::function<othello_idx_t()> &heuristic_func, bool start_player);
+  double EvalGameGroup(GroupSignalGPAgent &agent, GroupSignalGPAgent &opp, bool start_player);
   othello_idx_t EvalMove(SignalGPAgent &agent);
   othello_idx_t EvalMoveGroup(GroupSignalGPAgent &agent);
   

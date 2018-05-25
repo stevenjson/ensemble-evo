@@ -963,18 +963,6 @@ EnsembleExp::othello_idx_t EnsembleExp::EvalMoveGroup(GroupSignalGPAgent &agent)
     }
   }
 
-  for (auto hw : sgpg_eval_hw)
-  {
-    size_t num_votes = hw->GetTrait(TRAIT_ID__CAST);
-    size_t num_invalid = hw->GetTrait(TRAIT_ID__INVALID);
-
-    if (num_votes < 1)
-      vote_penalties += PENALTY;
-    else{
-      vote_penalties += PENALTY * num_invalid;
-    }
-  }
-
   size_t move_count = move_choices.size();
   // std::cout<<"move count: "<<move_count<<std::endl;
   return move_count ? GetOthelloIndex(move_choices[random->GetUInt(0, move_count)]) : GetOthelloIndex(OTHELLO_BOARD_NUM_CELLS);
@@ -1035,30 +1023,48 @@ double EnsembleExp::EvalGame(SignalGPAgent &agent, SignalGPAgent &opp, bool star
 /// param: agent, the organism to be evaluated
 /// param: heuristic_func, the handwritten AI the organism will compete against
 /// returns: the score of the organism.
-double EnsembleExp::EvalGameGroup(GroupSignalGPAgent &agent, std::function<othello_idx_t()> &heuristic_func, bool start_player)
+double EnsembleExp::EvalGameGroup(GroupSignalGPAgent &agent, GroupSignalGPAgent &opp, bool start_player)
 {
   // Initialize othello game
   game_hw->Reset();
   double score = 0;
   vote_penalties = 0;
   bool curr_player = start_player; //random->GetInt(0, 2); //Choose start player, 0 is individual, 1 is heuristic
-  for (auto dreamware : all_dreamware)
-  {
-    dreamware->SetPlayerID((curr_player == 0) ? othello_t::DARK : othello_t::LIGHT);
-  }
 
   // Main game loop
   for (size_t round_num = 0; round_num < OTHELLO_MAX_ROUND_CNT; ++round_num)
   {
-    othello_idx_t move = (curr_player == 0) ? EvalMoveGroup(agent) : heuristic_func();
-    //std::cout<<"curr_player: "<<curr_player<<" move: "<<move.pos<<" round: "<<round_num<<std::endl;
+    for (auto dreamware : all_dreamware)
+    {
+      dreamware->SetPlayerID((curr_player == start_player) ? othello_t::DARK : othello_t::LIGHT);
+    }
+    othello_idx_t move = (curr_player == 0) ? EvalMoveGroup(agent) : EvalMoveGroup(opp);
     score = round_num;
+    if (curr_player == 0)
+    {
+      for (auto hw : sgpg_eval_hw)
+      {
+        size_t num_votes = hw->GetTrait(TRAIT_ID__CAST);
+        size_t num_invalid = hw->GetTrait(TRAIT_ID__INVALID);
+
+        if (num_votes < 1)
+          vote_penalties += PENALTY;
+        else
+        {
+          vote_penalties += PENALTY * num_invalid;
+        }
+      }
+    }
 
     //If a invalid move is given, fitness becomes rounds completed w/o error
     if (!game_hw->IsValidMove(game_hw->GetCurPlayer(), move))
     {
-      emp_assert(curr_player != 1); // Heuristic should not give an invalid move
-      return score - vote_penalties;
+      if (curr_player == 0) return score - vote_penalties;
+      else
+      {
+        emp::vector<othello_idx_t> options = game_hw->GetMoveOptions();
+        move = options[random->GetUInt(0, options.size())];
+      }
     }
 
     bool go_again = game_hw->DoNextMove(move);
@@ -1168,20 +1174,24 @@ void EnsembleExp::EvaluateGroup()
     // Evaluate agent given by id.
     GroupSignalGPAgent &our_hero = sgpg_world->GetOrg(id);
     our_hero.SetID(id);
+
     // Initialize fitness tracking object
     Phenotype &phen = agent_phen_cache[id];
     phen.aggregate_score = 0;
     phen.illegal_move_total = 0;
 
-    for (size_t i = 0; i < heuristics.size(); ++i)
+    for (size_t i = 0; i < NUM_GAMES; ++i)
     {
+      // Find a random opponent from the population
+      size_t opp_id = random->GetInt(0, sgpg_world->GetSize());
+      GroupSignalGPAgent &our_opp = sgpg_world->GetOrg(opp_id);
+      our_opp.SetID(opp_id);
+
       bool start_player = random->GetInt(0, 2);
-      if (i == 0) start_player = 1;
-      else if (i == 1) start_player = 0;
-      phen.heuristic_scores[i] = EvalGameGroup(our_hero, heuristics[i], start_player);
-      //std::cout << std::endl;
+
+      phen.heuristic_scores[i] = EvalGameGroup(our_hero, our_opp, start_player);
       phen.aggregate_score += phen.heuristic_scores[i]; // Sum of scores is fitness of organism
-      if (phen.heuristic_scores[i] < OTHELLO_MAX_ROUND_CNT)
+      if (phen.heuristic_scores[i] < OTHELLO_MAX_ROUND_CNT) //TODO
       {
         phen.illegal_move_total++;
       }
@@ -1213,7 +1223,7 @@ void EnsembleExp::SelectionGroup()
   case SELECTION_METHOD_ID__LEXICASE:
   {
     sgpg_lexicase_fit_set.resize(0);
-    for (size_t i = 0; i < heuristics.size(); ++i)
+    for (size_t i = 0; i < NUM_GAMES; ++i)
     {
       sgpg_lexicase_fit_set.push_back([i, this](GroupSignalGPAgent &agent) {
         Phenotype &phen = agent_phen_cache[agent.GetID()];
