@@ -160,6 +160,19 @@ void EnsembleExp::Inst_GetFace(SGP__hardware_t &hw, const SGP__inst_t &inst)
   state.SetLocal(inst.args[0], hw.GetTrait(TRAIT_ID__GID));
 }
 
+void EnsembleExp::SGP__Inst_CastVote(SGP__hardware_t &hw, const SGP__inst_t &inst)
+{
+  othello_idx_t move = GetOthelloIndex((size_t)hw.GetTrait(TRAIT_ID__MOVE));
+  hw.SetTrait(TRAIT_ID__CAST, hw.GetTrait(TRAIT_ID__CAST) + 1);
+
+  if (!game_hw->IsValidMove(game_hw->GetCurPlayer(), move)) 
+  {
+    hw.SetTrait(TRAIT_ID__INVALID, hw.GetTrait(TRAIT_ID__INVALID) + 1);
+  }
+  const size_t confidence = hw.GetTrait(TRAIT_ID__CONF);
+  agent_votes[move.pos] += confidence;
+}
+
 /// Instruction: SendMsgFacing
 /// Description: Send message to faced neighbor (as determined by hardware direction trait).
 void EnsembleExp::Inst_SendMsgFacing(SGP__hardware_t &hw, const SGP__inst_t &inst)

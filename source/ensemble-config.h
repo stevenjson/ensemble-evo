@@ -24,6 +24,8 @@ EMP_BUILD_CONFIG( EnsembleConfig,
   VALUE(GROUP_SIZE, size_t, 5, "How many organisms in an ensemble?"),
   VALUE(COMMUNICATION, bool, 0, "Are communication instructions in the list of evolvable instructions?"),
   VALUE(CONFIDENCE, bool, 0, "Is confidence based voting enabled?"),
+  VALUE(MULTIVOTE, bool, 0, "Do agents get to vote for multiple moves?"),
+  VALUE(PENALTY, size_t, 0, "What is the fitness penalty for an invalid vote?"),
 
   GROUP(SELECTION_GROUP, "Selection Settings"),
   VALUE(SELECTION_METHOD, size_t, 0, "Which selection method are we using? \n0: Tournament\n1: Lexicase\n2: Eco-EA (resource)\n3: MAP-Elites\n4: Roulette"),

@@ -45,6 +45,8 @@ constexpr size_t TRAIT_ID__DONE = 1;
 constexpr size_t TRAIT_ID__GID = 2;
 constexpr size_t TRAIT_ID__LOC = 3;
 constexpr size_t TRAIT_ID__CONF = 4;
+constexpr size_t TRAIT_ID__CAST = 5;
+constexpr size_t TRAIT_ID__INVALID = 6;
 
 // Population Initialization Method Options 
 constexpr size_t INIT_RANDOM = 0;
@@ -174,6 +176,8 @@ protected:
   size_t GROUP_SIZE;
   bool COMMUNICATION;
   bool CONFIDENCE;
+  bool MULTIVOTE;
+  size_t PENALTY;
   // Selection Group parameters
   size_t SELECTION_METHOD;
   size_t ELITE_SELECT__ELITE_CNT;
@@ -225,12 +229,14 @@ protected:
   size_t eval_time;             ///< Current evaluation time point (within an agent's turn).
   size_t OTHELLO_MAX_ROUND_CNT; ///< What are the maximum number of rounds in game?
   size_t best_agent_id;         ///< What is the id of the current best organism?
+  size_t vote_penalties;
 
   /// Fitness vectors
   emp::vector<Phenotype> agent_phen_cache;                                        ///< Cache for organims fitness.
   emp::vector<std::function<othello_idx_t()>> heuristics;                         ///< Heuristic functions for fitness evaluation.
   emp::vector<std::function<double(SignalGPAgent &)>> sgp_lexicase_fit_set;       ///< Fit set for SGP lexicase selection.
   emp::vector<std::function<double(GroupSignalGPAgent &)>> sgpg_lexicase_fit_set; ///< Fit set for SGP lexicase selection.
+  emp::array<size_t, OTHELLO_BOARD_NUM_CELLS + 1> agent_votes = {};
 
   // SignalGP-specifics.
   emp::Ptr<SGP__world_t> sgp_world;         ///< World for evolving SignalGP agents.
@@ -303,6 +309,8 @@ public:
     GROUP_SIZE = config.GROUP_SIZE();
     COMMUNICATION = config.COMMUNICATION();
     CONFIDENCE = config.CONFIDENCE();
+    MULTIVOTE = config.MULTIVOTE();
+    PENALTY = config.PENALTY();
     SELECTION_METHOD = config.SELECTION_METHOD();
     ELITE_SELECT__ELITE_CNT = config.ELITE_SELECT__ELITE_CNT();
     TOURNAMENT_SIZE = config.TOURNAMENT_SIZE();
@@ -411,9 +419,23 @@ public:
 
     if (CONFIDENCE)
     {
-      std::cout<<"Error: Confidence Voting is not implemented yet..."<<std::endl;
-      exit(-1);
       ConfigConfidenceLib();
+    }
+
+    if (MULTIVOTE)
+    {
+      sgp_inst_lib->AddInst("CastVote",
+                            [this](SGP__hardware_t &hw, const SGP__inst_t &inst) { this->SGP__Inst_CastVote(hw, inst); },
+                            0, "Adds the current set move and confidence to total votes");
+    }
+    else
+    {
+      sgp_inst_lib->AddInst("CastVote",
+                            [this](SGP__hardware_t &hw, const SGP__inst_t &inst) { 
+                              this->SGP__Inst_CastVote(hw, inst);
+                              this->SGP_Inst_EndTurn(hw, inst); 
+                            },
+                            0, "Ends the agents turn");
     }
   }
 
@@ -559,6 +581,8 @@ public:
 
   // Fork
   void SGP__Inst_Fork(SGP__hardware_t &hw, const SGP__inst_t &inst);
+  // Cast Vote
+  void SGP__Inst_CastVote(SGP__hardware_t &hw, const SGP__inst_t &inst);
   // BoardWidth
   void SGP_Inst_GetBoardWidth(SGP__hardware_t &hw, const SGP__inst_t &inst);
   // EndTurn
