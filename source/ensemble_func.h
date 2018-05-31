@@ -103,7 +103,6 @@ void EnsembleExp::ConfigSGPG() {
       exit(-1);
   }
 
-  do_evaluation_sig.AddAction([this]() { this->EvaluateGroup(); });
   do_selection_sig.AddAction([this]() { this->SelectionGroup(); });
   do_world_update_sig.AddAction([this]() { sgpg_world->Update(); });
 }
@@ -123,7 +122,7 @@ void EnsembleExp::SGP__ResetHW(const SGP__memory_t &main_in_mem)
 /// main thread to be equal to main_in_mem.
 void EnsembleExp::SGPG__ResetHW(const SGP__memory_t &main_in_mem)
 {
-  for (size_t i = 0; i < sgpg_eval_hw.size(); ++i)
+  for (size_t i = 0; i < GROUP_SIZE; ++i)
   {
     sgpg_eval_hw[i]->ResetHardware();
     sgpg_eval_hw[i]->SetTrait(TRAIT_ID__MOVE, -1);
@@ -1121,6 +1120,55 @@ void EnsembleExp::Evaluate()
       if (phen.heuristic_scores[i] < OTHELLO_MAX_ROUND_CNT) {phen.illegal_move_total++;} //TODO
     }
 
+    // Write current fitness information to file
+    record_fit_sig.Trigger(id, phen.aggregate_score);
+    record_phen_sig.Trigger(id, phen.heuristic_scores);
+
+    if (phen.aggregate_score > best_score)
+    {
+      best_score = phen.aggregate_score;
+      best_agent_id = id;
+    }
+  }
+  std::cout << "Update: " << update << " Max score: " << best_score << std::endl;
+}
+
+/// Calculate fitness for all organisms in the population.
+void EnsembleExp::EvaluateAll()
+{
+  double best_score = -32767;
+  best_agent_id = 0;
+
+  for (size_t id = 0; id < sgpg_world->GetSize(); ++id)
+  {
+    // Evaluate agent given by id.
+    GroupSignalGPAgent &our_hero = sgpg_world->GetOrg(id);
+    our_hero.SetID(id);
+
+    // Initialize fitness tracking object
+    Phenotype &phen = agent_phen_cache[id];
+    phen.aggregate_score = 0;
+    phen.illegal_move_total = 0;
+
+    for (size_t i = 0; i < NUM_GAMES; ++i)
+    {
+      emp_assert(NUM_GAMES == GROUP_SIZE);
+      coordinator_id = i;
+      // Find a random opponent from the population
+      size_t opp_id = random->GetInt(0, sgpg_world->GetSize());
+      GroupSignalGPAgent &our_opp = sgpg_world->GetOrg(opp_id);
+      our_opp.SetID(opp_id);
+
+      bool start_player = random->GetInt(0, 2);
+
+      phen.heuristic_scores[i] = EvalGameGroup(our_hero, our_opp, start_player);
+      phen.aggregate_score += phen.heuristic_scores[i]; // Sum of scores is fitness of organism
+      if (phen.heuristic_scores[i] < OTHELLO_MAX_ROUND_CNT) //TODO
+      {
+        phen.illegal_move_total++;
+      }
+    }
+    //std::cout<<"AGG SCORE: "<<phen.aggregate_score<<std::endl<<std::endl;
     // Write current fitness information to file
     record_fit_sig.Trigger(id, phen.aggregate_score);
     record_phen_sig.Trigger(id, phen.heuristic_scores);

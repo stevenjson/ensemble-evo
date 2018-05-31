@@ -126,6 +126,12 @@ void EnsembleExp::ConfigCommunicationLib() {
   sgp_inst_lib->AddInst("BroadcastMsg", Inst_BroadcastMsg, 0, "Broadcast output memory as message event.", emp::ScopeType::BASIC, 0, {"affinity"});
   sgp_inst_lib->AddInst("GetFace", Inst_GetFace, 1, "Local memory Arg1 => Current deme member selected.");
   sgp_inst_lib->AddInst("SetFace", Inst_SetFace, 1, "Set facing trait to Local Reg Arg1");
+
+  coord_inst_lib->AddInst("SendMsgFacing", Inst_SendMsgFacing, 0, "Send output memory as message event to faced neighbor.", emp::ScopeType::BASIC, 0, {"affinity"});
+  coord_inst_lib->AddInst("BroadcastMsg", Inst_BroadcastMsg, 0, "Broadcast output memory as message event.", emp::ScopeType::BASIC, 0, {"affinity"});
+  coord_inst_lib->AddInst("GetFace", Inst_GetFace, 1, "Local memory Arg1 => Current deme member selected.");
+  coord_inst_lib->AddInst("SetFace", Inst_SetFace, 1, "Set facing trait to Local Reg Arg1");
+
   sgp_event_lib->AddEvent("MessageFacing", HandleEvent_MessageForking, "Event for messaging neighbors.");
   sgp_event_lib->AddEvent("MessageBroadcast", HandleEvent_MessageForking, "Event for broadcasting a message.");
 
@@ -136,6 +142,45 @@ void EnsembleExp::ConfigCommunicationLib() {
   sgp_event_lib->RegisterDispatchFun("MessageBroadcast", [this](SGP__hardware_t &hw, const SGP__event_t &event) {
     this->EventDriven__DispatchMessageBroadcast(hw, event);
   });
+}
+
+void EnsembleExp::ConfigCoordinatorLib()
+{
+  coord_inst_lib->AddInst("Inc", SGP__hardware_t::Inst_Inc, 1, "Increment value in local memory Arg1");
+  coord_inst_lib->AddInst("Dec", SGP__hardware_t::Inst_Dec, 1, "Decrement value in local memory Arg1");
+  coord_inst_lib->AddInst("Not", SGP__hardware_t::Inst_Not, 1, "Logically toggle value in local memory Arg1");
+  coord_inst_lib->AddInst("Add", SGP__hardware_t::Inst_Add, 3, "Local memory: Arg3 = Arg1 + Arg2");
+  coord_inst_lib->AddInst("Sub", SGP__hardware_t::Inst_Sub, 3, "Local memory: Arg3 = Arg1 - Arg2");
+  coord_inst_lib->AddInst("Mult", SGP__hardware_t::Inst_Mult, 3, "Local memory: Arg3 = Arg1 * Arg2");
+  coord_inst_lib->AddInst("Div", SGP__hardware_t::Inst_Div, 3, "Local memory: Arg3 = Arg1 / Arg2");
+  coord_inst_lib->AddInst("Mod", SGP__hardware_t::Inst_Mod, 3, "Local memory: Arg3 = Arg1 % Arg2");
+  coord_inst_lib->AddInst("TestEqu", SGP__hardware_t::Inst_TestEqu, 3, "Local memory: Arg3 = (Arg1 == Arg2)");
+  coord_inst_lib->AddInst("TestNEqu", SGP__hardware_t::Inst_TestNEqu, 3, "Local memory: Arg3 = (Arg1 != Arg2)");
+  coord_inst_lib->AddInst("TestLess", SGP__hardware_t::Inst_TestLess, 3, "Local memory: Arg3 = (Arg1 < Arg2)");
+  coord_inst_lib->AddInst("If", SGP__hardware_t::Inst_If, 1, "Local memory: If Arg1 != 0, proceed; else, skip block.", emp::ScopeType::BASIC, 0, {"block_def"});
+  coord_inst_lib->AddInst("While", SGP__hardware_t::Inst_While, 1, "Local memory: If Arg1 != 0, loop; else, skip block.", emp::ScopeType::BASIC, 0, {"block_def"});
+  coord_inst_lib->AddInst("Countdown", SGP__hardware_t::Inst_Countdown, 1, "Local memory: Countdown Arg1 to zero.", emp::ScopeType::BASIC, 0, {"block_def"});
+  coord_inst_lib->AddInst("Close", SGP__hardware_t::Inst_Close, 0, "Close current block if there is a block to close.", emp::ScopeType::BASIC, 0, {"block_close"});
+  coord_inst_lib->AddInst("Break", SGP__hardware_t::Inst_Break, 0, "Break out of current block.");
+  coord_inst_lib->AddInst("Call", SGP__hardware_t::Inst_Call, 0, "Call function that best matches call affinity.", emp::ScopeType::BASIC, 0, {"affinity"});
+  coord_inst_lib->AddInst("Return", SGP__hardware_t::Inst_Return, 0, "Return from current function if possible.");
+  coord_inst_lib->AddInst("SetMem", SGP__hardware_t::Inst_SetMem, 2, "Local memory: Arg1 = numerical value of Arg2");
+  coord_inst_lib->AddInst("CopyMem", SGP__hardware_t::Inst_CopyMem, 2, "Local memory: Arg1 = Arg2");
+  coord_inst_lib->AddInst("SwapMem", SGP__hardware_t::Inst_SwapMem, 2, "Local memory: Swap values of Arg1 and Arg2.");
+  coord_inst_lib->AddInst("Input", SGP__hardware_t::Inst_Input, 2, "Input memory Arg1 => Local memory Arg2.");
+  coord_inst_lib->AddInst("Output", SGP__hardware_t::Inst_Output, 2, "Local memory Arg1 => Output memory Arg2.");
+  coord_inst_lib->AddInst("Commit", SGP__hardware_t::Inst_Commit, 2, "Local memory Arg1 => Shared memory Arg2.");
+  coord_inst_lib->AddInst("Pull", SGP__hardware_t::Inst_Pull, 2, "Shared memory Arg1 => Shared memory Arg2.");
+  coord_inst_lib->AddInst("Nop", SGP__hardware_t::Inst_Nop, 0, "No operation.");
+  coord_inst_lib->AddInst("EndTurn",
+                        [this](SGP__hardware_t &hw, const SGP__inst_t &inst) { this->SGP_Inst_EndTurn(hw, inst); },
+                        0, "End current othello turn");
+  coord_inst_lib->AddInst("SetMoveXY",
+                        [this](SGP__hardware_t &hw, const SGP__inst_t &inst) { this->SGP__Inst_SetMoveXY(hw, inst); },
+                        2, "MoveXY = (WM[ARG1], WM[ARG2])");
+  coord_inst_lib->AddInst("SetMoveID",
+                        [this](SGP__hardware_t &hw, const SGP__inst_t &inst) { this->SGP__Inst_SetMoveID(hw, inst); },
+                        1, "MoveID = (WM[ARG1])");
 }
 
 void EnsembleExp::ConfigConfidenceLib() 
@@ -170,7 +215,19 @@ void EnsembleExp::SGP__Inst_CastVote(SGP__hardware_t &hw, const SGP__inst_t &ins
     hw.SetTrait(TRAIT_ID__INVALID, hw.GetTrait(TRAIT_ID__INVALID) + 1);
   }
   const size_t confidence = hw.GetTrait(TRAIT_ID__CONF);
-  agent_votes[move.pos] += confidence;
+  
+  if (coordinator_id >= 0)
+  {
+    if (hw.GetTrait(TRAIT_ID__LOC) == coordinator_id)
+    {
+      agent_votes[move.pos] += confidence;
+    }
+
+  }
+  else
+  {
+    agent_votes[move.pos] += confidence;
+  }
 }
 
 /// Instruction: SendMsgFacing
@@ -193,9 +250,9 @@ void EnsembleExp::Inst_BroadcastMsg(SGP__hardware_t &hw, const SGP__inst_t &inst
 /// NOTE: needs access to eval_deme to know who neighbors are.
 void EnsembleExp::EventDriven__DispatchMessageFacing(SGP__hardware_t &hw, const SGP__event_t &event)
 {
-  const size_t loc = (size_t)hw.GetTrait(TRAIT_ID__LOC);
-  emp_assert(GROUP_SIZE > 1); // cant mod by 0
-  const size_t facing_id = emp::Mod(loc + 1 + emp::Mod(hw.GetTrait(TRAIT_ID__GID), GROUP_SIZE - 1), GROUP_SIZE); // Can get all group ids except own
+  //const size_t loc = (size_t)hw.GetTrait(TRAIT_ID__LOC);
+  //emp_assert(GROUP_SIZE > 1); // cant mod by 0
+  const size_t facing_id = emp::Mod(hw.GetTrait(TRAIT_ID__GID), GROUP_SIZE); //emp::Mod(loc + 1 + emp::Mod(hw.GetTrait(TRAIT_ID__GID), GROUP_SIZE - 1), GROUP_SIZE); // Can get all group ids except own TODO
   sgpg_eval_hw[facing_id]->QueueEvent(event);
 }
 

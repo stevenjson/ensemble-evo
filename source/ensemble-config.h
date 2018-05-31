@@ -27,6 +27,7 @@ EMP_BUILD_CONFIG( EnsembleConfig,
   VALUE(CONFIDENCE, bool, 0, "Is confidence based voting enabled?"),
   VALUE(MULTIVOTE, bool, 0, "Do agents get to vote for multiple moves?"),
   VALUE(PENALTY, size_t, 0, "What is the fitness penalty for an invalid vote?"),
+  VALUE(COORDINATOR, size_t, 0, "Which coordinator representation are we using? \n0: No Coordinator \n1: First agent only \n2: Different agent every game \n3: Enforced Specialization"),
 
   GROUP(SELECTION_GROUP, "Selection Settings"),
   VALUE(SELECTION_METHOD, size_t, 0, "Which selection method are we using? \n0: Tournament\n1: Lexicase\n2: Eco-EA (resource)\n3: MAP-Elites\n4: Roulette"),
@@ -42,7 +43,6 @@ EMP_BUILD_CONFIG( EnsembleConfig,
   VALUE(SGP_MAX_FUNCTION_CNT, size_t, 4, "Used for generating SGP programs. How many functions do we generate?"),
   VALUE(SGP_MIN_FUNC_CNT, size_t, 1, "TODO"),
   VALUE(SGP_PROG_MAX_LENGTH, size_t, 200, "Maximum length of SGP program (used for variable length programs)"),
-
 
   GROUP(SGP_HARDWARE_GROUP, "SignalGP Hardware Settings"),
   VALUE(SGP_HW_MAX_CORES, size_t, 16, "Max number of hardware cores; i.e., max number of simultaneous threads of execution hardware will support."),

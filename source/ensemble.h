@@ -39,6 +39,12 @@ constexpr size_t OTHELLO_BOARD_NUM_CELLS = OTHELLO_BOARD_WIDTH * OTHELLO_BOARD_W
 constexpr size_t REPRESENTATION_ID__SIGNALGP = 0;
 constexpr size_t REPRESENTATION_ID__SIGNALGPGROUP = 1;
 
+// Coordinator Representation Options
+constexpr size_t COORDINATOR_REP_NONE = 0;
+constexpr size_t COORDINATOR_REP_FIRST = 1;
+constexpr size_t COORDINATOR_REP_ALL = 2;
+constexpr size_t COORDINATOR_REP_SPECIAL = 3;
+
 // Agent trait locations
 constexpr size_t TRAIT_ID__MOVE = 0;
 constexpr size_t TRAIT_ID__DONE = 1;
@@ -179,6 +185,7 @@ protected:
   bool CONFIDENCE;
   bool MULTIVOTE;
   size_t PENALTY;
+  size_t COORDINATOR;
   // Selection Group parameters
   size_t SELECTION_METHOD;
   size_t ELITE_SELECT__ELITE_CNT;
@@ -231,6 +238,7 @@ protected:
   size_t OTHELLO_MAX_ROUND_CNT; ///< What are the maximum number of rounds in game?
   size_t best_agent_id;         ///< What is the id of the current best organism?
   size_t vote_penalties;
+  int coordinator_id;
 
   /// Fitness vectors
   emp::vector<Phenotype> agent_phen_cache;                                        ///< Cache for organims fitness.
@@ -243,6 +251,7 @@ protected:
   emp::Ptr<SGP__world_t> sgp_world;         ///< World for evolving SignalGP agents.
   emp::Ptr<SGPG__world_t> sgpg_world;       ///< World for evolving Group SignalGP agents.
   emp::Ptr<SGP__inst_lib_t> sgp_inst_lib;   ///< SignalGP instruction library.
+  emp::Ptr<SGP__inst_lib_t> coord_inst_lib;   ///< SignalGP Coordinator instruction library.
   emp::Ptr<SGP__event_lib_t> sgp_event_lib; ///< SignalGP event library.
 
   // Systematics-specific signals for data tracking.
@@ -313,6 +322,7 @@ public:
     CONFIDENCE = config.CONFIDENCE();
     MULTIVOTE = config.MULTIVOTE();
     PENALTY = config.PENALTY();
+    COORDINATOR = config.COORDINATOR();
     SELECTION_METHOD = config.SELECTION_METHOD();
     ELITE_SELECT__ELITE_CNT = config.ELITE_SELECT__ELITE_CNT();
     TOURNAMENT_SIZE = config.TOURNAMENT_SIZE();
@@ -372,6 +382,7 @@ public:
 
     // Initialize instruction/event libraries.
     sgp_inst_lib = emp::NewPtr<SGP__inst_lib_t>();
+    coord_inst_lib = emp::NewPtr<SGP__inst_lib_t>();
     sgp_event_lib = emp::NewPtr<SGP__event_lib_t>();
 
     // Make data directory.
@@ -386,7 +397,15 @@ public:
 
     for (size_t i = 0; i < GROUP_SIZE; ++i)
     {
-      emp::Ptr<SGP__hardware_t> temp = emp::NewPtr<SGP__hardware_t>(sgp_inst_lib, sgp_event_lib, random);
+      emp::Ptr<SGP__hardware_t> temp;
+      if (COORDINATOR == COORDINATOR_REP_SPECIAL && i == 0)
+      {
+        temp = emp::NewPtr<SGP__hardware_t>(coord_inst_lib, sgp_event_lib, random);
+      }
+      else{
+        temp = emp::NewPtr<SGP__hardware_t>(sgp_inst_lib, sgp_event_lib, random);
+      }
+      
       temp->SetMinBindThresh(SGP_HW_MIN_BIND_THRESH);
       temp->SetMaxCores(SGP_HW_MAX_CORES);
       temp->SetMaxCallDepth(SGP_HW_MAX_CALL_DEPTH);
@@ -413,6 +432,49 @@ public:
         exit(-1);
     }
 
+    switch (COORDINATOR) 
+    {
+      case COORDINATOR_REP_NONE:
+        if (REPRESENTATION == REPRESENTATION_ID__SIGNALGPGROUP) do_evaluation_sig.AddAction([this]() { this->EvaluateGroup(); });
+        coordinator_id = -1;
+        break;
+
+      case COORDINATOR_REP_FIRST:
+        emp_assert(REPRESENTATION == REPRESENTATION_ID__SIGNALGPGROUP);
+        sgp_inst_lib->AddInst("GetCoordinator",
+                              [this](SGP__hardware_t &hw, const SGP__inst_t &inst) {
+                                SGP__state_t &state = hw.GetCurState();
+                                state.SetLocal(inst.args[0], coordinator_id);
+                              },
+                              1, "Returns the location of the current coordinator in the ensemble");
+        coordinator_id = 0;
+        std::cout << "Coordinator Configuration (" << COORDINATOR << ") Not implemented yet. Exiting..." << std::endl;
+        exit(-1);
+        break;
+
+      case COORDINATOR_REP_ALL:
+        emp_assert(REPRESENTATION == REPRESENTATION_ID__SIGNALGPGROUP);
+        do_evaluation_sig.AddAction([this]() { this->EvaluateAll(); });
+        sgp_inst_lib->AddInst("GetCoordinator",
+                              [this](SGP__hardware_t &hw, const SGP__inst_t &inst) {
+                                SGP__state_t &state = hw.GetCurState();
+                                state.SetLocal(inst.args[0], coordinator_id);
+                              },
+                              1, "Returns the location of the current coordinator in the ensemble");
+        coordinator_id = 0;
+        break;
+
+      case COORDINATOR_REP_SPECIAL:
+        emp_assert(REPRESENTATION == REPRESENTATION_ID__SIGNALGPGROUP);
+        ConfigCoordinatorLib();
+        coordinator_id = 0;
+        break;
+
+      default:
+        std::cout << "Coordinator Configuration (" << COORDINATOR << ") Not implemented. Exiting..." << std::endl;
+        exit(-1);
+    }
+
     if (COMMUNICATION)
     {
       emp_assert(REPRESENTATION == REPRESENTATION_ID__SIGNALGPGROUP);
@@ -429,6 +491,10 @@ public:
       sgp_inst_lib->AddInst("CastVote",
                             [this](SGP__hardware_t &hw, const SGP__inst_t &inst) { this->SGP__Inst_CastVote(hw, inst); },
                             0, "Adds the current set move and confidence to total votes");
+      
+      coord_inst_lib->AddInst("CastVote",
+                            [this](SGP__hardware_t &hw, const SGP__inst_t &inst) { this->SGP__Inst_CastVote(hw, inst); },
+                            0, "Adds the current set move and confidence to total votes");
     }
     else
     {
@@ -438,7 +504,15 @@ public:
                               this->SGP_Inst_EndTurn(hw, inst); 
                             },
                             0, "Ends the agents turn");
+
+      coord_inst_lib->AddInst("CastVote",
+                            [this](SGP__hardware_t &hw, const SGP__inst_t &inst) {
+                              this->SGP__Inst_CastVote(hw, inst);
+                              this->SGP_Inst_EndTurn(hw, inst);
+                            },
+                            0, "Ends the agents turn");
     }
+    std::cout<<"Configured."<<std::endl;
   }
 
   /// Destructor for the expirement.
@@ -448,6 +522,7 @@ public:
     sgp_world.Delete();
     sgpg_world.Delete();
     sgp_inst_lib.Delete();
+    coord_inst_lib.Delete();
     sgp_event_lib.Delete();
     sgp_eval_hw.Delete();
 	  game_hw.Delete();
@@ -479,11 +554,14 @@ public:
 
     // // NOTE: when this gets called, world->GetOrg(best_agent_id) is no longer accurate.
     // //       But... agent_phen_cache is still good to go.
-    // std::function<double(void)> get_random_first_score = [&world, this]() {
-    //   Phenotype &best_phen = this->agent_phen_cache[this->best_agent_id];
-    //   return best_phen.heuristic_scores[0];
-    // };
-    // file.AddFun(get_random_first_score, "RandomFirst", "get best phenotype score from this update");
+    for (size_t i = 0; i < NUM_GAMES; ++i)
+    {
+      std::function<double(void)> get_score = [&world, this, i]() {
+        Phenotype &best_phen = this->agent_phen_cache[this->best_agent_id];
+        return best_phen.heuristic_scores[i];
+      };
+      file.AddFun(get_score, "Game_" + std::to_string(i), "get best phenotype score from this update");
+    }
 
     // std::function<double(void)> get_random_second_score = [&world, this]() {
     //   Phenotype &best_phen = this->agent_phen_cache[this->best_agent_id];
@@ -540,6 +618,7 @@ public:
 
   // Functions run in each step of evolution
   void Evaluate();
+  void EvaluateAll();
   void Selection();
   void EvaluateGroup();
   void SelectionGroup();
@@ -549,6 +628,7 @@ public:
   void ConfigSGPG();
   void ConfigSGP_InstLib();
   void ConfigCommunicationLib();
+  void ConfigCoordinatorLib();
   void ConfigConfidenceLib();
   void ConfigHeuristics();
 
