@@ -838,8 +838,8 @@ void EnsembleExp::ConfigHeuristics()
 	  return min_move;
   };
 
-  heuristics.push_back(random_player);
-  heuristics.push_back(random_player);
+  //heuristics.push_back(random_player);
+  //heuristics.push_back(random_player);
   heuristics.push_back(greedy_player);
   heuristics.push_back(corner_player);
   heuristics.push_back(frontier_player);
@@ -923,6 +923,7 @@ EnsembleExp::othello_idx_t EnsembleExp::EvalMove(SignalGPAgent &agent)
 EnsembleExp::othello_idx_t EnsembleExp::EvalMoveGroup(GroupSignalGPAgent &agent)
 {
   agent_votes = {};
+  h_choices = {};
   emp::vector<size_t> move_choices;
   size_t most_votes = 0;
 
@@ -1028,6 +1029,7 @@ double EnsembleExp::EvalGameGroup(GroupSignalGPAgent &agent, GroupSignalGPAgent 
   game_hw->Reset();
   double score = 0;
   vote_penalties = 0;
+  h_bonus = 0;
   bool curr_player = start_player; //random->GetInt(0, 2); //Choose start player, 0 is individual, 1 is heuristic
 
   // Main game loop
@@ -1039,6 +1041,7 @@ double EnsembleExp::EvalGameGroup(GroupSignalGPAgent &agent, GroupSignalGPAgent 
     }
     othello_idx_t move = (curr_player == 0) ? EvalMoveGroup(agent) : EvalMoveGroup(opp);
     score = round_num;
+
     if (curr_player == 0)
     {
       for (auto hw : sgpg_eval_hw)
@@ -1052,6 +1055,19 @@ double EnsembleExp::EvalGameGroup(GroupSignalGPAgent &agent, GroupSignalGPAgent 
         {
           vote_penalties += PENALTY * num_invalid;
         }
+      }
+
+      if (COORDINATOR == COORDINATOR_REP_FIRST)
+      {
+        emp_assert(MULTIVOTE == 0);
+        double bonus = double(GROUP_SIZE) * -1;
+        for (size_t i = 0; i < h_choices.size(); ++i)
+        {
+          bonus += h_choices[i];
+        }
+        emp_assert(bonus <= 0);
+        bonus += h_choices[move.pos];
+        h_bonus += bonus;
       }
     }
 
@@ -1081,7 +1097,7 @@ double EnsembleExp::EvalGameGroup(GroupSignalGPAgent &agent, GroupSignalGPAgent 
   emp_assert(game_hw->IsOver());
 
   // Bonus for completing game, increased by performance in game. Max possible fitness is 235 per heuristic.
-  score = 2 * OTHELLO_MAX_ROUND_CNT + hero_score - vote_penalties;
+  score = 2 * OTHELLO_MAX_ROUND_CNT + hero_score - vote_penalties + h_bonus;
   if (hero_score > opp_score)
   {
     score += 2 * rounds_left;

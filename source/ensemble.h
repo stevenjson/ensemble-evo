@@ -238,6 +238,7 @@ protected:
   size_t OTHELLO_MAX_ROUND_CNT; ///< What are the maximum number of rounds in game?
   size_t best_agent_id;         ///< What is the id of the current best organism?
   size_t vote_penalties;
+  double h_bonus;
   int coordinator_id;
 
   /// Fitness vectors
@@ -246,6 +247,7 @@ protected:
   emp::vector<std::function<double(SignalGPAgent &)>> sgp_lexicase_fit_set;       ///< Fit set for SGP lexicase selection.
   emp::vector<std::function<double(GroupSignalGPAgent &)>> sgpg_lexicase_fit_set; ///< Fit set for SGP lexicase selection.
   emp::array<size_t, OTHELLO_BOARD_NUM_CELLS + 1> agent_votes = {};
+  emp::array<size_t, OTHELLO_BOARD_NUM_CELLS + 1> h_choices = {};
 
   // SignalGP-specifics.
   emp::Ptr<SGP__world_t> sgp_world;         ///< World for evolving SignalGP agents.
@@ -448,8 +450,7 @@ public:
                               },
                               1, "Returns the location of the current coordinator in the ensemble");
         coordinator_id = 0;
-        std::cout << "Coordinator Configuration (" << COORDINATOR << ") Not implemented yet. Exiting..." << std::endl;
-        exit(-1);
+        do_evaluation_sig.AddAction([this]() { this->EvaluateGroup(); });
         break;
 
       case COORDINATOR_REP_ALL:
@@ -466,6 +467,7 @@ public:
 
       case COORDINATOR_REP_SPECIAL:
         emp_assert(REPRESENTATION == REPRESENTATION_ID__SIGNALGPGROUP);
+        do_evaluation_sig.AddAction([this]() { this->EvaluateGroup(); });
         ConfigCoordinatorLib();
         coordinator_id = 0;
         break;

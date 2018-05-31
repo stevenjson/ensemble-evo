@@ -213,14 +213,25 @@ void EnsembleExp::SGP__Inst_CastVote(SGP__hardware_t &hw, const SGP__inst_t &ins
   if (!game_hw->IsValidMove(game_hw->GetCurPlayer(), move)) 
   {
     hw.SetTrait(TRAIT_ID__INVALID, hw.GetTrait(TRAIT_ID__INVALID) + 1);
+    return;
   }
   const size_t confidence = hw.GetTrait(TRAIT_ID__CONF);
+
+  const size_t loc = hw.GetTrait(TRAIT_ID__LOC);
   
   if (coordinator_id >= 0)
   {
-    if (hw.GetTrait(TRAIT_ID__LOC) == coordinator_id)
+    if (loc == coordinator_id)
     {
       agent_votes[move.pos] += confidence;
+    }
+    else
+    {
+      if (COORDINATOR == COORDINATOR_REP_FIRST)
+      {
+        othello_idx_t heur_real = heuristics[loc - 1]();
+        if(move.pos == heur_real.pos) h_choices[move.pos] += confidence;
+      }
     }
 
   }
