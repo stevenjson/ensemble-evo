@@ -944,6 +944,9 @@ EnsembleExp::othello_idx_t EnsembleExp::EvalMoveGroup(GroupSignalGPAgent &agent)
       if ((bool)sgpg_eval_hw[i]->GetTrait(TRAIT_ID__DONE)) continue;
       othello_dreamware = all_dreamware[i];
       sgpg_eval_hw[i]->SingleProcess();
+      // std::cout<<"Org "<<i<<std::endl;
+      // sgpg_eval_hw[i]->PrintState();
+      // std::cout<<"-----------------------"<<std::endl;
     }
   }
 

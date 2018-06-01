@@ -196,7 +196,8 @@ void EnsembleExp::ConfigConfidenceLib()
 
 void EnsembleExp::Inst_SetFace(SGP__hardware_t &hw, const SGP__inst_t &inst)
 {
-  hw.SetTrait(TRAIT_ID__GID, (size_t)inst.args[0]);
+  SGP__state_t &state = hw.GetCurState();
+  hw.SetTrait(TRAIT_ID__GID, (size_t)state.GetLocal(inst.args[0]));
 }
 
 void EnsembleExp::Inst_GetFace(SGP__hardware_t &hw, const SGP__inst_t &inst)
