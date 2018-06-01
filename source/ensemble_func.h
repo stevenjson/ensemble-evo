@@ -1,6 +1,7 @@
 #ifndef ENSEMBLE_FUNC_H
 #define ENSEMBLE_FUNC_H
 #include "ensemble.h"
+#include <algorithm>
 
 /// Configure the world settings for the expirement
 void EnsembleExp::ConfigSGP() {
@@ -841,7 +842,7 @@ void EnsembleExp::ConfigHeuristics()
   //heuristics.push_back(random_player);
   //heuristics.push_back(random_player);
   heuristics.push_back(greedy_player);
-  heuristics.push_back(corner_player);
+  //heuristics.push_back(corner_player);
   heuristics.push_back(frontier_player);
   heuristics.push_back(defense_player);
 
@@ -1124,6 +1125,7 @@ void EnsembleExp::Evaluate()
     Phenotype &phen = agent_phen_cache[id];
     phen.aggregate_score = 0;
     phen.illegal_move_total = 0;
+    phen.median_score = 0;
 
     for (size_t i = 0; i < NUM_GAMES; ++i)
     {
@@ -1139,13 +1141,24 @@ void EnsembleExp::Evaluate()
       if (phen.heuristic_scores[i] < OTHELLO_MAX_ROUND_CNT) {phen.illegal_move_total++;} //TODO
     }
 
+    emp::vector<double> temp = phen.heuristic_scores;
+    std::sort(temp.begin(), temp.end());
+    if (temp.size() % 2 == 1)
+    {
+      phen.median_score = temp[temp.size() / 2];
+    }
+    else
+    {
+      phen.median_score = (temp[temp.size() / 2 - 1] + temp[temp.size() / 2]) / 2;
+    }
+    //std::cout<<"AGG SCORE: "<<phen.aggregate_score<<std::endl<<std::endl;
     // Write current fitness information to file
-    record_fit_sig.Trigger(id, phen.aggregate_score);
+    record_fit_sig.Trigger(id, phen.median_score);
     record_phen_sig.Trigger(id, phen.heuristic_scores);
 
-    if (phen.aggregate_score > best_score)
+    if (phen.median_score > best_score)
     {
-      best_score = phen.aggregate_score;
+      best_score = phen.median_score;
       best_agent_id = id;
     }
   }
@@ -1182,19 +1195,26 @@ void EnsembleExp::EvaluateAll()
 
       phen.heuristic_scores[i] = EvalGameGroup(our_hero, our_opp, start_player);
       phen.aggregate_score += phen.heuristic_scores[i]; // Sum of scores is fitness of organism
-      if (phen.heuristic_scores[i] < OTHELLO_MAX_ROUND_CNT) //TODO
-      {
-        phen.illegal_move_total++;
-      }
+    }
+
+    emp::vector<double> temp = phen.heuristic_scores;
+    std::sort(temp.begin(), temp.end());
+    if (temp.size() % 2 == 1)
+    {
+      phen.median_score = temp[temp.size() / 2];
+    }
+    else
+    {
+      phen.median_score = (temp[temp.size() / 2 - 1] + temp[temp.size() / 2]) / 2;
     }
     //std::cout<<"AGG SCORE: "<<phen.aggregate_score<<std::endl<<std::endl;
     // Write current fitness information to file
-    record_fit_sig.Trigger(id, phen.aggregate_score);
+    record_fit_sig.Trigger(id, phen.median_score);
     record_phen_sig.Trigger(id, phen.heuristic_scores);
 
-    if (phen.aggregate_score > best_score)
+    if (phen.median_score > best_score)
     {
-      best_score = phen.aggregate_score;
+      best_score = phen.median_score;
       best_agent_id = id;
     }
   }
@@ -1263,14 +1283,25 @@ void EnsembleExp::EvaluateGroup()
         phen.illegal_move_total++;
       }
     }
+
+    emp::vector<double> temp = phen.heuristic_scores;
+    std::sort(temp.begin(), temp.end());
+    if (temp.size() % 2 == 1)
+    {
+      phen.median_score = temp[temp.size() / 2];
+    }
+    else
+    {
+      phen.median_score = (temp[temp.size() / 2 - 1] + temp[temp.size() / 2]) / 2;
+    }
     //std::cout<<"AGG SCORE: "<<phen.aggregate_score<<std::endl<<std::endl;
     // Write current fitness information to file
-    record_fit_sig.Trigger(id, phen.aggregate_score);
+    record_fit_sig.Trigger(id, phen.median_score);
     record_phen_sig.Trigger(id, phen.heuristic_scores);
 
-    if (phen.aggregate_score > best_score)
+    if (phen.median_score > best_score)
     {
-      best_score = phen.aggregate_score;
+      best_score = phen.median_score;
       best_agent_id = id;
     }
   }

@@ -154,6 +154,7 @@ public:
     emp::vector<double> heuristic_scores;
     size_t illegal_move_total;
     double aggregate_score;
+    double median_score;
   };
 
   // Aliases for defined structs
@@ -536,13 +537,13 @@ public:
   /// Fitness function for cached fitness of individual agents
   double CalcFitness(SignalGPAgent &agent)
   {
-    return agent_phen_cache[agent.GetID()].aggregate_score;
+    return agent_phen_cache[agent.GetID()].median_score;
   }
 
   /// Fitness function for cached fitness of ensembles
   double CalcFitness(GroupSignalGPAgent &agent)
   {
-    return agent_phen_cache[agent.GetID()].aggregate_score;
+    return agent_phen_cache[agent.GetID()].median_score;
   }
 
   /// Record phenotypic performance of best agent/ensemble in population 
