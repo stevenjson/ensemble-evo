@@ -219,6 +219,7 @@ void EnsembleExp::SGP__Inst_CastVote(SGP__hardware_t &hw, const SGP__inst_t &ins
   const size_t confidence = hw.GetTrait(TRAIT_ID__CONF);
 
   const size_t loc = hw.GetTrait(TRAIT_ID__LOC);
+  std::cout<<"Casting... Vote: "<<move.pos<<" Confidence: "<<confidence<<std::endl;
   
   if (coordinator_id >= 0)
   {
@@ -239,6 +240,7 @@ void EnsembleExp::SGP__Inst_CastVote(SGP__hardware_t &hw, const SGP__inst_t &ins
   else
   {
     agent_votes[move.pos] += confidence;
+    std::cout<<"Agent votes at move pos: "<<agent_votes[move.pos]<<std::endl;
   }
 }
 

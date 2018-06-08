@@ -20,6 +20,7 @@ EMP_BUILD_CONFIG( EnsembleConfig,
   VALUE(COMPETE_TYPE, size_t, 0, "What program types are competing? \n0: Individual Only \n1: Individual vs Ensemble \n2: Ensemble Only"),
   VALUE(COMPETE_FPATH_1, std::string, "./compete_1.gp", "Program 1 to load to compete"),
   VALUE(COMPETE_FPATH_2, std::string, "./compete_2.gp", "Program 2 to load to compete"),
+  VALUE(TIMEOUT, double, 1.0, "Timeout for Minimax AI"),
 
   GROUP(ENSEMBLE_GROUP, "Ensemble Settings"),
   VALUE(GROUP_SIZE, size_t, 5, "How many organisms in an ensemble?"),

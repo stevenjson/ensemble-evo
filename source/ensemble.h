@@ -27,6 +27,7 @@
 #include "tools/string_utils.h"
 #include "OthelloHW.h"
 #include "ensemble-config.h"
+#include "../../othello/game.h"
 
 // SignalGP Specific Constants
 constexpr size_t SGP__TAG_WIDTH = 16;
@@ -613,9 +614,11 @@ public:
   double EvalGameGroup(GroupSignalGPAgent &agent, GroupSignalGPAgent &opp, bool start_player);
   othello_idx_t EvalMove(SignalGPAgent &agent);
   othello_idx_t EvalMoveGroup(GroupSignalGPAgent &agent);
+  othello_idx_t EvalMoveAI(Game *game);
   
   // Functions to manage competition of evolved agents/ensembles
   void Compete();
+  Board::Move ConvertToMoveAI(Game *game, othello_idx_t move);
   emp::vector<SGP__program_t> LoadGroupCompete(std::string path);
   SGP__program_t LoadIndividualCompete(std::string path);
 

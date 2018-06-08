@@ -1,6 +1,7 @@
 #ifndef ENSEMBLE_FUNC_H
 #define ENSEMBLE_FUNC_H
 #include "ensemble.h"
+#include "../../othello/game.h"
 #include <algorithm>
 
 /// Configure the world settings for the expirement
@@ -954,7 +955,11 @@ EnsembleExp::othello_idx_t EnsembleExp::EvalMoveGroup(GroupSignalGPAgent &agent)
   for (size_t i = 0; i < agent_votes.size(); ++i)
   {
     if (agent_votes[i] == 0) continue;
-    if (!game_hw->IsValidMove(game_hw->GetCurPlayer(), GetOthelloIndex(i))) continue;
+    if (!game_hw->IsValidMove(game_hw->GetCurPlayer(), GetOthelloIndex(i)))
+    {
+      std::cout<<"Bad vote: "<<i<<" : "<<agent_votes[i]<<std::endl;
+      continue;
+    } 
     if (agent_votes[i] > most_votes)
     {
       move_choices.clear();
@@ -968,7 +973,7 @@ EnsembleExp::othello_idx_t EnsembleExp::EvalMoveGroup(GroupSignalGPAgent &agent)
   }
 
   size_t move_count = move_choices.size();
-  // std::cout<<"move count: "<<move_count<<std::endl;
+  std::cout<<"move count: "<<move_count<<std::endl;
   return move_count ? GetOthelloIndex(move_choices[random->GetUInt(0, move_count)]) : GetOthelloIndex(OTHELLO_BOARD_NUM_CELLS);
 }
 
@@ -1378,44 +1383,59 @@ EnsembleExp::SGP__program_t EnsembleExp::LoadIndividualCompete(std::string path)
   return ancestor_prog;
 }
 
+EnsembleExp::othello_idx_t EnsembleExp::EvalMoveAI(Game *game)
+{
+  game->board.Print();
+  vector<Board::Move> legal = game->board.LegalMoves(game->board.currentPlayer);
+  std::cout << "Legal Moves for player "<<game->board.currentPlayer<<":";
+  for (auto i : legal)
+  {
+    std::cout<<"("<<(int)i.square.x<<","<<(int)i.square.y<<") ";
+  }
+  std::cout<<std::endl;
+  Board::Move ai_move = game->smartMove();
+  othello_idx_t move(ai_move.square.x, ai_move.square.y);
+  return move;
+}
+
+Board::Move EnsembleExp::ConvertToMoveAI(Game *game, othello_idx_t move)
+{
+  emp::vector<Board::Move> legal = game->board.LegalMoves(game->board.currentPlayer);
+  for (auto ai_move : legal)
+  {
+    if((size_t)ai_move.square.x == move.x() && (size_t)ai_move.square.y == move.y())
+    {
+      return ai_move;
+    }
+  }
+  std::cout << "ERROR: Bad conversion. Move: "<<move.x()<<" , "<<move.y()<< std::endl;
+  std::cout << "Legal Moves: ";
+  for (auto i : legal)
+  {
+    std::cout << "(" << (int)i.square.x << "," << (int)i.square.y << ") ";
+  }
+  std::cout << std::endl;
+  exit(0);
+}
+
 void EnsembleExp::Compete()
 {
-  SGP__program_t sgp_agent_1(sgp_inst_lib);
-  SGP__program_t sgp_agent_2(sgp_inst_lib);
-  emp::vector <SGP__program_t> sgpg_agent_1;
-  emp::vector<SGP__program_t> sgpg_agent_2;
+  do_pop_init_sig.Trigger();
+  std::cout<<"World Size: "<<sgpg_world->size()<<std::endl;
 
-  ConfigCommunicationLib();
-
-  switch(COMPETE_TYPE)
-  {
-    case 0:
-      sgp_agent_1 = LoadIndividualCompete(COMPETE_FPATH_1);
-      sgp_agent_2 = LoadIndividualCompete(COMPETE_FPATH_2);
-      break;
-
-    case 1:
-      sgp_agent_1 = LoadIndividualCompete(COMPETE_FPATH_1);
-      sgpg_agent_1 = LoadGroupCompete(COMPETE_FPATH_2);
-      break;
-    
-    case 2:
-      sgpg_agent_1 = LoadGroupCompete(COMPETE_FPATH_1);
-      sgpg_agent_2 = LoadGroupCompete(COMPETE_FPATH_2);
-      break;
-  }
-
-  SignalGPAgent sgp_player_1 = SignalGPAgent(sgp_agent_1);
-  SignalGPAgent sgp_player_2 = SignalGPAgent(sgp_agent_2);
-  GroupSignalGPAgent sgpg_player_1 = GroupSignalGPAgent(sgpg_agent_1);
-  GroupSignalGPAgent sgpg_player_2 = GroupSignalGPAgent(sgpg_agent_2);
+  GroupSignalGPAgent &our_hero = sgpg_world->GetOrg(0);
+  our_hero.SetID(0);
 
   // Initialize othello game
   game_hw->Reset();
+  Game ai_game;
+  ai_game.timeLimit = 0.7;
+  ai_game.board = Board();
+  // Board ai_board;
   size_t p1_wins = 0;
   size_t p2_wins = 0;
   bool invalid = false;
-  bool curr_player = random->GetInt(0, 2); //Choose start player
+  bool curr_player = 0; //random->GetInt(0, 2); //Choose start player
   bool start_player = curr_player;
 
   // Main game loop
@@ -1425,37 +1445,30 @@ void EnsembleExp::Compete()
     {
       dreamware->SetPlayerID((curr_player == start_player) ? othello_t::DARK : othello_t::LIGHT);
     }
-    othello_idx_t move;
 
-    switch (COMPETE_TYPE)
-    {
-      case 0:
-        move = (curr_player == 0) ? EvalMove(sgp_player_1) : EvalMove(sgp_player_2);
-        break;
-      
-      case 1:
-        move = (curr_player == 0) ? EvalMove(sgp_player_1) : EvalMoveGroup(sgpg_player_1);
-        break;
+    othello_idx_t move = (curr_player == 0) ? EvalMoveGroup(our_hero) : EvalMoveAI(&ai_game);
+    std::cout<<"Player "<<curr_player<<" MOVE: "<<move.pos<<" XY: "<<move.x()<<" "<<move.y()<<std::endl;
 
-      case 2:
-        move = (curr_player == 0) ? EvalMoveGroup(sgpg_player_1) : EvalMoveGroup(sgpg_player_2);
-        break;
-    }
     //If a invalid move is given, fitness becomes rounds completed w/o error
     if (!game_hw->IsValidMove(game_hw->GetCurPlayer(), move))
     {
       (curr_player == 0) ? p2_wins++ : p1_wins++;
       invalid = true;
-      // std::cout<<move.pos<<std::endl;
+      std::cout<<"INVALID: "<<move.pos<<std::endl;
       break;
     }
 
     bool go_again = game_hw->DoNextMove(move);
+    ai_game.board.ApplyMove(ConvertToMoveAI(&ai_game, move));
+    std::cout<<"go again: "<<go_again<<std::endl;
+    ai_game.board.Print();
     if (game_hw->IsOver())
       break;
     if (!go_again)
+    {
       curr_player = !curr_player; //Change current player if you don't get another turn
-    
+      ai_game.board.NextPlayer(false);
+    }
     // game_hw->Print();
     // std::cout<<"DREAMWARE:"<<std::endl;
     // othello_dreamware->GetActiveDreamOthello().Print();

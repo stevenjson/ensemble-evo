@@ -1,9 +1,10 @@
 # Project-specific settings
 PROJECT := ensemble
 EMP_DIR := ../Empirical/source
+GAME_DIR := ../othello
 
 # Flags to use regardless of compiler
-CFLAGS_all := -Wall -Wno-unused-function -std=c++14 -I$(EMP_DIR)/
+CFLAGS_all := -Wall -Wno-unused-function -std=c++14 -I$(EMP_DIR)/ -I$(GAME_DIR)/
 
 # Native compiler information
 CXX_nat := g++
@@ -34,7 +35,7 @@ debug-web:	$(PROJECT).js
 web-debug:	debug-web
 
 $(PROJECT):	source/native/$(PROJECT).cc
-	$(CXX_nat) $(CFLAGS_nat) source/native/$(PROJECT).cc -o $(PROJECT)
+	$(CXX_nat) $(CFLAGS_nat) source/native/$(PROJECT).cc $(GAME_DIR)/game.cpp $(GAME_DIR)/board.cpp -o $(PROJECT)
 	@echo To build the web version use: make web
 
 $(PROJECT).js: source/web/$(PROJECT)-web.cc
