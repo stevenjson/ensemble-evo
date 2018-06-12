@@ -27,7 +27,7 @@
 #include "tools/string_utils.h"
 #include "OthelloHW.h"
 #include "ensemble-config.h"
-#include "../../othello/game.h"
+#include "../othelloAI/game.h"
 
 // SignalGP Specific Constants
 constexpr size_t SGP__TAG_WIDTH = 16;

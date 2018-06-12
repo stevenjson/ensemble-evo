@@ -1,7 +1,7 @@
 # Project-specific settings
 PROJECT := ensemble
 EMP_DIR := ../Empirical/source
-GAME_DIR := ../othello
+GAME_DIR := ./othelloAI
 
 # Flags to use regardless of compiler
 CFLAGS_all := -Wall -Wno-unused-function -std=c++14 -I$(EMP_DIR)/ -I$(GAME_DIR)/

@@ -1,7 +1,7 @@
 #ifndef ENSEMBLE_FUNC_H
 #define ENSEMBLE_FUNC_H
 #include "ensemble.h"
-#include "../../othello/game.h"
+#include "../othelloAI/game.h"
 #include <algorithm>
 
 /// Configure the world settings for the expirement
