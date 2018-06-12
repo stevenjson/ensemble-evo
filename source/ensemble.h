@@ -182,6 +182,7 @@ protected:
   std::string COMPETE_FPATH_1;
   std::string COMPETE_FPATH_2;
   double TIMEOUT;
+  int AGENT_KO;
   // Ensemble Group parameters
   size_t GROUP_SIZE;
   bool COMMUNICATION;
@@ -322,6 +323,7 @@ public:
     COMPETE_TYPE = config.COMPETE_TYPE();
     COMPETE_FPATH_1 = config.COMPETE_FPATH_1();
     COMPETE_FPATH_2 = config.COMPETE_FPATH_2();
+    AGENT_KO = config.AGENT_KO();
     TIMEOUT = config.TIMEOUT();
     GROUP_SIZE = config.GROUP_SIZE();
     COMMUNICATION = config.COMMUNICATION();
@@ -620,6 +622,7 @@ public:
   
   // Functions to manage competition of evolved agents/ensembles
   void Compete();
+  void AgentKnockout(GroupSignalGPAgent &ensemble, size_t ko_idx);
   Board::Move ConvertToMoveAI(Game *game, othello_idx_t move);
   emp::vector<SGP__program_t> LoadGroupCompete(std::string path);
   SGP__program_t LoadIndividualCompete(std::string path);

@@ -1418,24 +1418,37 @@ Board::Move EnsembleExp::ConvertToMoveAI(Game *game, othello_idx_t move)
   exit(0);
 }
 
+void EnsembleExp::AgentKnockout(GroupSignalGPAgent &ensemble, size_t ko_idx)
+{
+  std::string knockout_path = "knockout.gp";
+  SGP__program_t knockout = LoadIndividualCompete(knockout_path);
+  ensemble.programs[ko_idx] = knockout;
+}
+
 void EnsembleExp::Compete()
 {
   do_pop_init_sig.Trigger();
-  std::cout<<"World Size: "<<sgpg_world->size()<<std::endl;
 
   GroupSignalGPAgent &our_hero = sgpg_world->GetOrg(0);
   our_hero.SetID(0);
 
+  if (AGENT_KO > -1)
+  {
+    std::cout<<"Knocking Out Agent "<<AGENT_KO<<"..."<<std::endl;
+    emp_assert(AGENT_KO < our_hero.programs.size());
+    AgentKnockout(our_hero, AGENT_KO);
+  }
+
   // Initialize othello game
   game_hw->Reset();
-  Game ai_game;
+  Game ai_game(random);
   ai_game.timeLimit = TIMEOUT;
   ai_game.board = Board();
   // Board ai_board;
   size_t p1_wins = 0;
   size_t p2_wins = 0;
   bool invalid = false;
-  bool curr_player = 0; //random->GetInt(0, 2); //Choose start player
+  bool curr_player = 0; //random->GetInt(0, 2); //Choose start player TODO
   bool start_player = curr_player;
 
   // Main game loop

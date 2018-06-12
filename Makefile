@@ -35,7 +35,7 @@ debug-web:	$(PROJECT).js
 web-debug:	debug-web
 
 $(PROJECT):	source/native/$(PROJECT).cc
-	$(CXX_nat) $(CFLAGS_nat) source/native/$(PROJECT).cc $(GAME_DIR)/game.cpp $(GAME_DIR)/board.cpp -o $(PROJECT)
+	$(CXX_nat) $(CFLAGS_nat) source/native/$(PROJECT).cc $(GAME_DIR)/board.cpp -o $(PROJECT)
 	@echo To build the web version use: make web
 
 $(PROJECT).js: source/web/$(PROJECT)-web.cc
