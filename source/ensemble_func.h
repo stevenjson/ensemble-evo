@@ -1429,7 +1429,7 @@ void EnsembleExp::Compete()
   // Initialize othello game
   game_hw->Reset();
   Game ai_game;
-  ai_game.timeLimit = 0.7;
+  ai_game.timeLimit = TIMEOUT;
   ai_game.board = Board();
   // Board ai_board;
   size_t p1_wins = 0;

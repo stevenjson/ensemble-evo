@@ -181,6 +181,7 @@ protected:
   size_t COMPETE_TYPE;
   std::string COMPETE_FPATH_1;
   std::string COMPETE_FPATH_2;
+  double TIMEOUT;
   // Ensemble Group parameters
   size_t GROUP_SIZE;
   bool COMMUNICATION;
@@ -321,6 +322,7 @@ public:
     COMPETE_TYPE = config.COMPETE_TYPE();
     COMPETE_FPATH_1 = config.COMPETE_FPATH_1();
     COMPETE_FPATH_2 = config.COMPETE_FPATH_2();
+    TIMEOUT = config.TIMEOUT();
     GROUP_SIZE = config.GROUP_SIZE();
     COMMUNICATION = config.COMMUNICATION();
     CONFIDENCE = config.CONFIDENCE();
