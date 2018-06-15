@@ -219,7 +219,7 @@ void EnsembleExp::SGP__Inst_CastVote(SGP__hardware_t &hw, const SGP__inst_t &ins
   const size_t confidence = hw.GetTrait(TRAIT_ID__CONF);
 
   const size_t loc = hw.GetTrait(TRAIT_ID__LOC);
-  std::cout<<"Casting... Vote: "<<move.pos<<" Confidence: "<<confidence<<std::endl;
+  //std::cout<<"Casting... Vote: "<<move.pos<<" Confidence: "<<confidence<<std::endl;
   
   if (coordinator_id >= 0)
   {
@@ -231,8 +231,14 @@ void EnsembleExp::SGP__Inst_CastVote(SGP__hardware_t &hw, const SGP__inst_t &ins
     {
       if (COORDINATOR == COORDINATOR_REP_FIRST)
       {
+        if (hw.GetTrait(TRAIT_ID__CAST))
+        {
+          //std::cout<<"Already cast vote. Returning..."<<std::endl;
+          return;
+        }
         othello_idx_t heur_real = heuristics[loc - 1]();
         if(move.pos == heur_real.pos) h_choices[move.pos] += confidence;
+        //std::cout<<"Confidence: "<<confidence<<" Move: "<<move.pos<<" HCHOICES: "<<h_choices[move.pos]<<" Loc: "<<loc<<std::endl;
       }
     }
 
@@ -240,7 +246,7 @@ void EnsembleExp::SGP__Inst_CastVote(SGP__hardware_t &hw, const SGP__inst_t &ins
   else
   {
     agent_votes[move.pos] += confidence;
-    std::cout<<"Agent votes at move pos: "<<agent_votes[move.pos]<<std::endl;
+    //std::cout<<"Agent votes at move pos: "<<agent_votes[move.pos]<<std::endl;
   }
 }
 
@@ -319,6 +325,7 @@ void EnsembleExp::SGP_Inst_GetBoardWidth(SGP__hardware_t & hw, const SGP__inst_t
 // SGP_Inst_EndTurn
 void EnsembleExp::SGP_Inst_EndTurn(SGP__hardware_t & hw, const SGP__inst_t & inst) {
   hw.SetTrait(TRAIT_ID__DONE, 1);
+  //std::cout<<"Ending Turn"<<std::endl;
 }
 // SGP__Inst_SetMoveXY
 void EnsembleExp::SGP__Inst_SetMoveXY(SGP__hardware_t & hw, const SGP__inst_t & inst) {

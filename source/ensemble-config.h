@@ -22,6 +22,7 @@ EMP_BUILD_CONFIG( EnsembleConfig,
   VALUE(COMPETE_FPATH_2, std::string, "./compete_2.gp", "Program 2 to load to compete"),
   VALUE(TIMEOUT, double, 1.0, "Timeout for Minimax AI"),
   VALUE(AGENT_KO, int, -1, "Which agentin the ensemble should we replace with nop operations. No knockout occurs if value is negative."),
+  VALUE(INST_KO, size_t, 0, "What instructions should we replace with nop operations? \n0: None \n1: Multivote \n2: Confidence \n3: Communication"),
 
   GROUP(ENSEMBLE_GROUP, "Ensemble Settings"),
   VALUE(GROUP_SIZE, size_t, 4, "How many organisms in an ensemble?"),

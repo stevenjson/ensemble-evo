@@ -46,6 +46,12 @@ constexpr size_t COORDINATOR_REP_FIRST = 1;
 constexpr size_t COORDINATOR_REP_ALL = 2;
 constexpr size_t COORDINATOR_REP_SPECIAL = 3;
 
+// Instruction Knockout types
+constexpr size_t INST_KO_NONE = 0;
+constexpr size_t INST_KO_MULTI = 1;
+constexpr size_t INST_KO_CONF = 2;
+constexpr size_t INST_KO_COMM = 3;
+
 // Agent trait locations
 constexpr size_t TRAIT_ID__MOVE = 0;
 constexpr size_t TRAIT_ID__DONE = 1;
@@ -183,6 +189,7 @@ protected:
   std::string COMPETE_FPATH_2;
   double TIMEOUT;
   int AGENT_KO;
+  size_t INST_KO;
   // Ensemble Group parameters
   size_t GROUP_SIZE;
   bool COMMUNICATION;
@@ -325,6 +332,7 @@ public:
     COMPETE_FPATH_2 = config.COMPETE_FPATH_2();
     AGENT_KO = config.AGENT_KO();
     TIMEOUT = config.TIMEOUT();
+    INST_KO = config.INST_KO();
     GROUP_SIZE = config.GROUP_SIZE();
     COMMUNICATION = config.COMMUNICATION();
     CONFIDENCE = config.CONFIDENCE();
@@ -479,7 +487,7 @@ public:
         break;
 
       default:
-        std::cout << "Coordinator Configuration (" << COORDINATOR << ") Not implemented. Exiting..." << std::endl;
+        std::cout << "Coordinator Configuration (" << COORDINATOR << ") is invalid. Exiting..." << std::endl;
         exit(-1);
     }
 

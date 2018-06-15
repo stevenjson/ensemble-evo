@@ -943,7 +943,12 @@ EnsembleExp::othello_idx_t EnsembleExp::EvalMoveGroup(GroupSignalGPAgent &agent)
   {
     for (size_t i = 0; i < sgpg_eval_hw.size(); ++i)
     {
-      if ((bool)sgpg_eval_hw[i]->GetTrait(TRAIT_ID__DONE)) continue;
+      //std::cout<<"Eval: "<<eval_time<<std::endl;
+      if ((bool)sgpg_eval_hw[i]->GetTrait(TRAIT_ID__DONE)){
+        //std::cout<<"Skip: "<<i<<std::endl;
+        continue;
+      } 
+      
       othello_dreamware = all_dreamware[i];
       sgpg_eval_hw[i]->SingleProcess();
       // std::cout<<"Org "<<i<<std::endl;
@@ -957,7 +962,7 @@ EnsembleExp::othello_idx_t EnsembleExp::EvalMoveGroup(GroupSignalGPAgent &agent)
     if (agent_votes[i] == 0) continue;
     if (!game_hw->IsValidMove(game_hw->GetCurPlayer(), GetOthelloIndex(i)))
     {
-      std::cout<<"Bad vote: "<<i<<" : "<<agent_votes[i]<<std::endl;
+      //std::cout<<"Bad vote: "<<i<<" : "<<agent_votes[i]<<std::endl;
       continue;
     } 
     if (agent_votes[i] > most_votes)
@@ -973,7 +978,7 @@ EnsembleExp::othello_idx_t EnsembleExp::EvalMoveGroup(GroupSignalGPAgent &agent)
   }
 
   size_t move_count = move_choices.size();
-  std::cout<<"move count: "<<move_count<<std::endl;
+  //std::cout<<"move count: "<<move_count<<std::endl;
   return move_count ? GetOthelloIndex(move_choices[random->GetUInt(0, move_count)]) : GetOthelloIndex(OTHELLO_BOARD_NUM_CELLS);
 }
 
@@ -1069,7 +1074,7 @@ double EnsembleExp::EvalGameGroup(GroupSignalGPAgent &agent, GroupSignalGPAgent 
       if (COORDINATOR == COORDINATOR_REP_FIRST)
       {
         emp_assert(MULTIVOTE == 0);
-        double bonus = double(GROUP_SIZE) * -1;
+        double bonus = double(GROUP_SIZE - 1) * -1;
         for (size_t i = 0; i < h_choices.size(); ++i)
         {
           bonus += h_choices[i];
@@ -1077,6 +1082,8 @@ double EnsembleExp::EvalGameGroup(GroupSignalGPAgent &agent, GroupSignalGPAgent 
         emp_assert(bonus <= 0);
         bonus += h_choices[move.pos];
         h_bonus += bonus;
+        emp_assert(h_bonus <= 120);
+        emp_assert(h_bonus >= -120);
       }
     }
 
@@ -1111,6 +1118,7 @@ double EnsembleExp::EvalGameGroup(GroupSignalGPAgent &agent, GroupSignalGPAgent 
   {
     score += 2 * rounds_left;
   } // If you win, you get points for rounds left
+  //std::cout<<"TOTAL: "<<score<<std::endl;
   return score;
 }
 
@@ -1437,6 +1445,50 @@ void EnsembleExp::Compete()
     std::cout<<"Knocking Out Agent "<<AGENT_KO<<"..."<<std::endl;
     emp_assert(AGENT_KO < our_hero.programs.size());
     AgentKnockout(our_hero, AGENT_KO);
+  }
+
+  switch (INST_KO)
+  {
+    case INST_KO_NONE:
+      std::cout<<"No Instruction Knockout"<<std::endl;
+      break;
+    
+    case INST_KO_MULTI:
+      std::cout << "Instruction Knockout: Multivote" << std::endl;
+      sgp_inst_lib->UpdateInst("CastVote",
+                            [this](SGP__hardware_t &hw, const SGP__inst_t &inst) {
+                              this->SGP__Inst_CastVote(hw, inst);
+                              this->SGP_Inst_EndTurn(hw, inst);
+                              std::cout << "MULTIVOTE KNOCKOUT" << std::endl;
+                            });
+
+      coord_inst_lib->UpdateInst("CastVote",
+                              [this](SGP__hardware_t &hw, const SGP__inst_t &inst) {
+                                this->SGP__Inst_CastVote(hw, inst);
+                                this->SGP_Inst_EndTurn(hw, inst);
+                                std::cout<<"MULTIVOTE KNOCKOUT"<<std::endl;
+                              });
+      break;
+
+    case INST_KO_CONF:
+      std::cout << "Instruction Knockout: Confidence" << std::endl;
+      sgp_inst_lib->UpdateInst("SetConfidence", SGP__hardware_t::Inst_Nop );
+      sgp_inst_lib->UpdateInst("GetMoveConfidence", SGP__hardware_t::Inst_Nop);
+      coord_inst_lib->UpdateInst("SetConfidence", SGP__hardware_t::Inst_Nop);
+      coord_inst_lib->UpdateInst("GetMoveConfidence", SGP__hardware_t::Inst_Nop);
+      break;
+
+    case INST_KO_COMM:
+      std::cout << "Instruction Knockout: Communication" << std::endl;
+      sgp_inst_lib->UpdateInst("SendMsgFacing", SGP__hardware_t::Inst_Nop);
+      sgp_inst_lib->UpdateInst("BroadcastMsg", SGP__hardware_t::Inst_Nop);
+      coord_inst_lib->UpdateInst("SendMsgFacing", SGP__hardware_t::Inst_Nop);
+      coord_inst_lib->UpdateInst("BroadcastMsg", SGP__hardware_t::Inst_Nop);
+      break;
+
+    default:
+      std::cout << "Invalid Instruction Knockout Value (" << INST_KO << "). Exiting..." << std::endl;
+      exit(-1);
   }
 
   // Initialize othello game
