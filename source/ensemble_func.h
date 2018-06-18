@@ -30,7 +30,6 @@ void EnsembleExp::ConfigSGP() {
   record_fit_sig.AddAction([this](size_t pos, double fitness) { sgp_world->GetGenotypeAt(pos)->GetData().RecordFitness(fitness); });
 
   // Setup phenotype tracking
-  //TODO: AddBestPhenotypeFile(*sgp_world, DATA_DIRECTORY + "best_phenotype.csv").SetTimingRepeat(SYSTEMATICS_INTERVAL);
   record_phen_sig.AddAction([this](size_t pos, const phenotype_t &phen) { sgp_world->GetGenotypeAt(pos)->GetData().RecordPhenotype(phen); });
 
   // do_pop_snapshot
@@ -83,7 +82,6 @@ void EnsembleExp::ConfigSGPG() {
   record_fit_sig.AddAction([this](size_t pos, double fitness) { sgpg_world->GetGenotypeAt(pos)->GetData().RecordFitness(fitness); });
 
   // Setup phenotype tracking
-  //TODO: AddBestPhenotypeFile(*sgpg_world, DATA_DIRECTORY + "best_phenotype.csv").SetTimingRepeat(SYSTEMATICS_INTERVAL);
   record_phen_sig.AddAction([this](size_t pos, const phenotype_t &phen) { sgpg_world->GetGenotypeAt(pos)->GetData().RecordPhenotype(phen); });
 
   // do_pop_snapshot
@@ -755,7 +753,7 @@ void EnsembleExp::SGPG__InitPopulation_FromAncestorFile()
     std::cout << " -------------------------" << std::endl;
     ancestor_programs.push_back(ancestor_prog);
   }
-  sgpg_world->Inject(ancestor_programs, 1); // Inject a bunch of ancestors into the population. TODO
+  sgpg_world->Inject(ancestor_programs, 1); // Inject a bunch of ancestors into the population.
 }
 
 /// Configure different types of othello programs to compete organisms against 
@@ -1393,14 +1391,14 @@ EnsembleExp::SGP__program_t EnsembleExp::LoadIndividualCompete(std::string path)
 
 EnsembleExp::othello_idx_t EnsembleExp::EvalMoveAI(Game *game)
 {
-  game->board.Print();
+  //game->board.Print();
   vector<Board::Move> legal = game->board.LegalMoves(game->board.currentPlayer);
-  std::cout << "Legal Moves for player "<<game->board.currentPlayer<<":";
-  for (auto i : legal)
-  {
-    std::cout<<"("<<(int)i.square.x<<","<<(int)i.square.y<<") ";
-  }
-  std::cout<<std::endl;
+  //std::cout << "Legal Moves for player "<<game->board.currentPlayer<<":";
+  // for (auto i : legal)
+  // {
+  //   std::cout<<"("<<(int)i.square.x<<","<<(int)i.square.y<<") ";
+  // }
+  // std::cout<<std::endl;
   Board::Move ai_move = game->smartMove();
   othello_idx_t move(ai_move.square.x, ai_move.square.y);
   return move;
@@ -1500,33 +1498,34 @@ void EnsembleExp::Compete()
   size_t p1_wins = 0;
   size_t p2_wins = 0;
   bool invalid = false;
-  bool curr_player = 0; //random->GetInt(0, 2); //Choose start player TODO
+  bool curr_player = random->GetInt(0, 2); //Choose start player 
   bool start_player = curr_player;
+
+  for (auto dreamware : all_dreamware)
+  {
+    dreamware->SetPlayerID((start_player == 0) ? othello_t::DARK : othello_t::LIGHT);
+  }
 
   // Main game loop
   for (size_t round_num = 0; round_num < OTHELLO_MAX_ROUND_CNT; ++round_num)
   {
-    for (auto dreamware : all_dreamware)
-    {
-      dreamware->SetPlayerID((curr_player == start_player) ? othello_t::DARK : othello_t::LIGHT);
-    }
 
     othello_idx_t move = (curr_player == 0) ? EvalMoveGroup(our_hero) : EvalMoveAI(&ai_game);
-    std::cout<<"Player "<<curr_player<<" MOVE: "<<move.pos<<" XY: "<<move.x()<<" "<<move.y()<<std::endl;
+    //std::cout<<"Player "<<curr_player<<" MOVE: "<<move.pos<<" XY: "<<move.x()<<" "<<move.y()<<std::endl;
 
     //If a invalid move is given, fitness becomes rounds completed w/o error
     if (!game_hw->IsValidMove(game_hw->GetCurPlayer(), move))
     {
       (curr_player == 0) ? p2_wins++ : p1_wins++;
       invalid = true;
-      std::cout<<"INVALID: "<<move.pos<<std::endl;
+      //std::cout<<"INVALID: "<<move.pos<<std::endl;
       break;
     }
 
     bool go_again = game_hw->DoNextMove(move);
     ai_game.board.ApplyMove(ConvertToMoveAI(&ai_game, move));
-    std::cout<<"go again: "<<go_again<<std::endl;
-    ai_game.board.Print();
+    //std::cout<<"go again: "<<go_again<<std::endl;
+    //ai_game.board.Print();
     if (game_hw->IsOver())
       break;
     if (!go_again)

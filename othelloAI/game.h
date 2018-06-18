@@ -372,9 +372,9 @@ Board::Move Game::smartMove()
         }
         bestMove = move;
     }
-    cout << "Searched to depth: " << depth << " in " << ((float)(clock() - startTime)) / CLOCKS_PER_SEC << " seconds" << endl;
-    cout << "Computer chose move " << moveNum << endl;
-    board.Print(vector<Board::Move>(1, move), true);
+    //cout << "Searched to depth: " << depth << " in " << ((float)(clock() - startTime)) / CLOCKS_PER_SEC << " seconds" << endl;
+    //cout << "Computer chose move " << moveNum << endl;
+    //board.Print(vector<Board::Move>(1, move), true);
     //return board.NextPlayer(false);
     return move;
 }
@@ -394,7 +394,7 @@ bool Game::randomMove()
     }
     else
     {
-        cout << "Computer had to pass :(" << endl;
+        //cout << "Computer had to pass :(" << endl;
         return board.NextPlayer(true);
     }
 }
