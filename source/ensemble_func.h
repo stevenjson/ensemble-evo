@@ -1501,6 +1501,11 @@ void EnsembleExp::Compete()
   bool curr_player = random->GetInt(0, 2); //Choose start player 
   bool start_player = curr_player;
 
+  if (COORDINATOR == COORDINATOR_REP_ALL)
+  {
+    coordinator_id = random->GetInt(0, GROUP_SIZE);
+  }
+
   for (auto dreamware : all_dreamware)
   {
     dreamware->SetPlayerID((start_player == 0) ? othello_t::DARK : othello_t::LIGHT);
